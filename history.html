@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>History - AssignSavvy</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
+  <link rel="stylesheet" href="./styles/main.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Top Bar -->
+    <div class="dashboard-topbar">
+      <div class="topbar-left">
+        <button class="sidebar-toggle" id="sidebar-toggle">
+          <i class="fas fa-bars"></i>
+        </button>
+        <div class="topbar-logo">
+          📚 AssignSavvy
+        </div>
+      </div>
+      <div class="topbar-title">History</div>
+      <div class="topbar-actions">
+        <button class="notification-btn" id="notification-btn">
+          <i class="fas fa-bell"></i>
+          <div class="notification-badge"></div>
+        </button>
+        <a href="index.html" class="home-btn">
+          <i class="fas fa-home"></i>
+          <span>Home</span>
+        </a>
+      </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="dashboard-sidebar" id="dashboard-sidebar">
+      <!-- Navigation -->
+      <ul class="sidebar-nav">
+        <li>
+          <a href="dashboard.html" class="sidebar-nav-item">
+            <i class="fas fa-chart-line"></i>
+            <span>Dashboard</span>
+          </a>
+        </li>
+        <li>
+          <a href="writer.html" class="sidebar-nav-item">
+            <i class="fas fa-pen"></i>
+            <span>Writer</span>
+          </a>
+        </li>
+        <li>
+          <a href="researcher.html" class="sidebar-nav-item">
+            <i class="fas fa-magnifying-glass"></i>
+            <span>Researcher</span>
+          </a>
+        </li>
+        <li>
+          <a href="detector.html" class="sidebar-nav-item">
+            <i class="fas fa-shield-halved"></i>
+            <span>Detector</span>
+          </a>
+        </li>
+        <li>
+          <a href="prompt-engineer.html" class="sidebar-nav-item">
+            <i class="fas fa-code"></i>
+            <span>Prompt Engineer</span>
+          </a>
+        </li>
+        <li>
+          <a href="history.html" class="sidebar-nav-item active">
+            <i class="fas fa-clock-rotate-left"></i>
+            <span>History</span>
+          </a>
+        </li>
+      </ul>
+      
+      <!-- User Account Info - Bottom Corner -->
+      <div class="user-account-info">
+        <div class="user-profile-card" id="user-profile-card" style="cursor: pointer;">
+          <div class="user-avatar">
+            <i class="fas fa-user-circle"></i>
+          </div>
+          <div class="user-details">
+            <h4 id="user-name">User Name</h4>
+            <p class="user-plan" id="user-plan">Free Plan</p>
+            <div class="user-credits">
+              <i class="fas fa-coins"></i>
+              <span id="user-credits">145/200 Credits</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="dashboard-content">
+      <!-- Header -->
+      <div class="section-header">
+        <h2>History</h2>
+        <button class="btn btn-outline" id="export-history-btn">
+          <i class="fas fa-download"></i> Export
+        </button>
+      </div>
+      <div class="mb-6">
+        <p class="text-gray">View and manage all your past and current projects</p>
+      </div>
+      
+      <!-- Filter Buttons -->
+      <div class="flex flex-wrap gap-2 mb-6">
+        <button class="btn btn-outline active">All Items</button>
+        <button class="btn btn-outline">Completed</button>
+        <button class="btn btn-outline">In Progress</button>
+        <button class="btn btn-outline">Failed</button>
+      </div>
+      
+      <!-- Overview Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <!-- Total Projects Card -->
+        <div class="card">
+          <h4>Total Projects</h4>
+          <div class="flex items-end justify-between">
+            <span class="text-3xl font-bold">0</span>
+            <span class="text-sm text-gray">No projects</span>
+          </div>
+        </div>
+        
+        <!-- Completed Card -->
+        <div class="card">
+          <h4>Completed</h4>
+          <div class="flex items-end justify-between">
+            <span class="text-3xl font-bold">0</span>
+            <span class="text-sm text-gray">No completed projects</span>
+          </div>
+        </div>
+        
+        <!-- In Progress Card -->
+        <div class="card">
+          <h4>In Progress</h4>
+          <div class="flex items-end justify-between">
+            <span class="text-3xl font-bold">0</span>
+            <span class="text-sm text-gray">No projects in progress</span>
+          </div>
+        </div>
+        
+        <!-- Total Words Card -->
+        <div class="card">
+          <h4>Total Words</h4>
+          <div class="flex items-end justify-between">
+            <span class="text-3xl font-bold">0</span>
+            <span class="text-sm text-gray">No words generated</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Project Table -->
+      <div class="card">
+        <div class="flex justify-between items-center mb-4">
+          <h3>Projects</h3>
+          <div class="flex items-center">
+            <div class="form-group mr-2">
+              <input type="text" class="form-input" placeholder="Search projects...">
+            </div>
+            <button class="btn btn-outline">
+              <i class="fas fa-filter"></i> Filter
+            </button>
+          </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Size</th>
+                <th>Words</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="7" class="text-center py-8">
+                  <div class="flex flex-col items-center gap-4">
+                    <i class="fas fa-folder-open text-gray-400 text-4xl"></i>
+                    <p class="text-gray-500">No history items found</p>
+                    <p class="text-sm text-gray-400">Your completed projects will appear here</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="flex justify-between items-center mt-4">
+          <div class="text-sm text-gray">
+            Showing 0 items
+          </div>
+          <div class="flex gap-1">
+            <button class="btn btn-icon" disabled>
+              <i class="fas fa-chevron-left"></i>
+            </button>
+            <button class="btn btn-icon active">1</button>
+            <button class="btn btn-icon" disabled>
+              <i class="fas fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- User Profile Modal -->
+  <div id="user-profile-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>User Profile</h3>
+        <button id="close-profile-modal" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="profile-section">
+          <div class="profile-avatar">
+            <i class="fas fa-user-circle text-6xl text-primary"></i>
+          </div>
+          <div class="profile-info">
+            <h4 id="modal-user-name">User Name</h4>
+            <p class="text-gray" id="modal-user-email">john.doe@example.com</p>
+            <div class="plan-info">
+              <span class="plan-badge" id="modal-user-plan">Free Plan</span>
+              <div class="credits-info">
+                <i class="fas fa-coins text-orange"></i>
+                <span id="modal-user-credits">145/200 Credits</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="profile-actions">
+          <button class="btn btn-outline" onclick="window.location.href='auth.html'">Account Settings</button>
+          <button class="btn btn-primary" onclick="window.location.href='pricing.html'">Upgrade Plan</button>
+          <button class="btn btn-outline" onclick="logout()">Logout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <style>
+    /* Modern CSS Variables */
+    :root {
+      --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      --gradient-accent: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      --glass-bg: rgba(255, 255, 255, 0.1);
+      --glass-border: rgba(255, 255, 255, 0.2);
+      --shadow-glass: 0 8px 32px rgba(31, 38, 135, 0.37);
+      --shadow-hover: 0 12px 40px rgba(31, 38, 135, 0.5);
+      --border-radius: 16px;
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    body {
+      background: white;
+      min-height: 100vh;
+    }
+
+    .dashboard-layout {
+      background: white;
+    }
+
+    .dashboard-content {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: var(--border-radius);
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+      transition: var(--transition);
+    }
+
+    h2 {
+      background: var(--gradient-accent);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: var(--border-radius);
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--gradient-accent);
+      opacity: 0;
+      transition: var(--transition);
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.15);
+    }
+
+    .card:hover::before {
+      opacity: 1;
+    }
+
+    h3 {
+      background: var(--gradient-secondary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 600;
+    }
+
+    .form-input {
+      background: white;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: #1f2937;
+      transition: var(--transition);
+    }
+
+    .form-input::placeholder {
+      color: #9ca3af;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .btn {
+      background: white;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      padding: 10px 20px;
+      color: #374151;
+      font-weight: 500;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.05), transparent);
+      transition: left 0.5s;
+    }
+
+    .btn:hover::before {
+      left: 100%;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-outline {
+      background: white;
+      border: 2px solid #d1d5db;
+    }
+
+    .btn-outline.active {
+      background: var(--gradient-accent);
+      border-color: transparent;
+      color: white;
+    }
+
+    .btn-primary {
+      background: var(--gradient-secondary);
+      border: none;
+      color: white;
+    }
+
+    /* Table Styles */
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      background: transparent;
+    }
+    
+    .table th,
+    .table td {
+      padding: var(--space-3) var(--space-4);
+      text-align: left;
+      color: #1f2937;
+    }
+    
+    .table th {
+      background: #f9fafb;
+      font-weight: 600;
+      border-bottom: 2px solid #e5e7eb;
+    }
+    
+    .table tr {
+      border-bottom: 1px solid #e5e7eb;
+      transition: var(--transition);
+    }
+    
+    .table tr:last-child {
+      border-bottom: none;
+    }
+
+    .table tr:hover {
+      background: #f9fafb;
+    }
+    
+    /* Status Badge */
+    .status-badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--glass-border);
+      transition: var(--transition);
+    }
+    
+    .status-completed {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+    }
+    
+    .status-in-progress {
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      color: white;
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+    }
+    
+    .status-failed {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+      box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+    }
+    
+    /* Icon Button */
+    .btn-icon {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: white;
+      color: #6b7280;
+      border: 1px solid #d1d5db;
+      cursor: pointer;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-icon::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.05), transparent);
+      transition: left 0.5s;
+    }
+
+    .btn-icon:hover::before {
+      left: 100%;
+    }
+    
+    .btn-icon:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn-icon.active {
+      background: var(--gradient-accent);
+      color: white;
+      box-shadow: 0 8px 25px rgba(79, 172, 254, 0.4);
+    }
+    
+    .btn-icon:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-icon:disabled:hover {
+      transform: none;
+      box-shadow: none;
+    }
+    
+    /* Text Colors */
+    .text-primary {
+      background: var(--gradient-accent);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .text-info {
+      color: #60a5fa;
+    }
+    
+    .text-success {
+      color: #34d399;
+    }
+    
+    .text-warning {
+      color: #fbbf24;
+    }
+    
+    .text-danger {
+      color: #f87171;
+    }
+
+    .text-gray {
+      color: #6b7280;
+    }
+
+    .text-gray-400 {
+      color: #9ca3af;
+    }
+
+    .text-gray-500 {
+      color: #6b7280;
+    }
+
+    /* Empty State Styling */
+    .text-center {
+      text-align: center;
+    }
+
+    .py-8 {
+      padding: 2rem 0;
+    }
+
+    .text-4xl {
+      font-size: 2.25rem;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+      .dashboard-content {
+        margin: 10px;
+        border-radius: 12px;
+      }
+
+      .card {
+        border-radius: 12px;
+        margin-bottom: 1rem;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+
+      .flex {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .table {
+        font-size: 0.875rem;
+      }
+
+      .table th,
+      .table td {
+        padding: 0.75rem 0.5rem;
+      }
+
+      .btn {
+        padding: 8px 16px;
+        font-size: 0.875rem;
+      }
+
+      .form-input {
+        padding: 10px 12px;
+        font-size: 0.875rem;
+      }
+
+      h2 {
+        font-size: 1.5rem;
+      }
+
+      h3 {
+        font-size: 1.25rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .dashboard-content {
+        margin: 5px;
+        padding: 1rem;
+      }
+
+      .card {
+        padding: 1rem;
+      }
+
+      .btn-icon {
+        width: 32px;
+        height: 32px;
+      }
+
+      .status-badge {
+        padding: 4px 8px;
+        font-size: 0.625rem;
+      }
+
+      .overflow-x-auto {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .table {
+        min-width: 600px;
+      }
+    }
+  </style>
+  
+  <script>
+    // User profile data
+    const currentUser = {
+      name: 'User Name',
+      email: 'john.doe@example.com',
+      plan: 'Free Plan',
+      credits: '145/200 Credits'
+    };
+
+    // Load user profile data
+    function loadUserProfile() {
+      // Update sidebar user info
+      document.getElementById('user-name').textContent = currentUser.name;
+      document.getElementById('user-plan').textContent = currentUser.plan;
+      document.getElementById('user-credits').textContent = currentUser.credits;
+      
+      // Update modal user info
+      document.getElementById('modal-user-name').textContent = currentUser.name;
+      document.getElementById('modal-user-email').textContent = currentUser.email;
+      document.getElementById('modal-user-plan').textContent = currentUser.plan;
+      document.getElementById('modal-user-credits').textContent = currentUser.credits;
+    }
+
+    // Logout function
+    function logout() {
+      // In a real app, this would clear session/tokens
+      alert('Logging out...');
+      window.location.href = 'auth.html';
+    }
+
+    // Event listeners for user profile modal and sidebar
+    document.addEventListener('DOMContentLoaded', function() {
+      loadUserProfile();
+      
+      // Show modal when user profile card is clicked
+      document.getElementById('user-profile-card').addEventListener('click', function() {
+        document.getElementById('user-profile-modal').style.display = 'flex';
+      });
+      
+      // Hide modal when close button is clicked
+      document.getElementById('close-profile-modal').addEventListener('click', function() {
+        document.getElementById('user-profile-modal').style.display = 'none';
+      });
+      
+      // Hide modal when clicking outside of it
+      document.getElementById('user-profile-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+          this.style.display = 'none';
+        }
+      });
+
+      // Sidebar functionality
+      // Sidebar toggle functionality
+      const sidebarToggle = document.getElementById('sidebar-toggle');
+      const sidebar = document.getElementById('dashboard-sidebar');
+      const dashboardLayout = document.querySelector('.dashboard-layout');
+      
+      // Toggle sidebar on button click
+      sidebarToggle.addEventListener('click', function() {
+        if (window.innerWidth <= 768) {
+          // Mobile behavior
+          sidebar.classList.toggle('sidebar-open');
+          dashboardLayout.classList.toggle('sidebar-active');
+        } else {
+          // Desktop behavior
+          dashboardLayout.classList.toggle('sidebar-collapsed');
+        }
+      });
+      
+      // Close sidebar when clicking outside on mobile
+      document.addEventListener('click', function(event) {
+        if (window.innerWidth <= 768) {
+          if (!sidebar.contains(event.target) && !sidebarToggle.contains(event.target) && sidebar.classList.contains('sidebar-open')) {
+            sidebar.classList.remove('sidebar-open');
+            dashboardLayout.classList.remove('sidebar-active');
+          }
+        }
+      });
+      
+      // Handle window resize
+      window.addEventListener('resize', function() {
+        if (window.innerWidth > 768) {
+          sidebar.classList.remove('sidebar-open');
+          dashboardLayout.classList.remove('sidebar-active');
+        } else {
+          dashboardLayout.classList.remove('sidebar-collapsed');
+        }
+      });
+      
+      // Filter button functionality
+      const filterButtons = document.querySelectorAll('.btn-outline');
+      filterButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          filterButtons.forEach(btn => btn.classList.remove('active'));
+          this.classList.add('active');
+        });
+      });
+    });
+  </script>
+
+
+</body>
+</html>
