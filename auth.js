@@ -1,172 +1,966 @@
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const router = express.Router();
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-// Register endpoint
-router.post('/register', async (req, res) => {
-    const { name, email, password } = req.body;
-    const db = req.app.locals.db;
-
-    if (!name || !email || !password) {
-        return res.status(400).json({ error: 'All fields are required' });
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Authentication - AssignSavvy</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
+  <link rel="stylesheet" href="./styles/main.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    /* Modern Auth Page Styles */
+    body {
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
-
-    if (password.length < 6) {
-        return res.status(400).json({ error: 'Password must be at least 6 characters' });
-    }
-
-    try {
-        // Check if user already exists
-        db.get('SELECT id FROM users WHERE email = ?', [email], async (err, row) => {
-            if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ error: 'Database error' });
-            }
-
-            if (row) {
-                return res.status(400).json({ error: 'User already exists with this email' });
-            }
-
-            // Hash password
-            const saltRounds = 10;
-            const passwordHash = await bcrypt.hash(password, saltRounds);
-
-            // Insert new user
-            db.run(
-                'INSERT INTO users (name, email, password_hash, credits, is_premium) VALUES (?, ?, ?, ?, ?)',
-                [name, email, passwordHash, 200, 0],
-                function(err) {
-                    if (err) {
-                        console.error('Database error:', err);
-                        return res.status(500).json({ error: 'Error creating user' });
-                    }
-
-                    // Generate JWT token
-                    const token = jwt.sign(
-                        { userId: this.lastID, email: email },
-                        JWT_SECRET,
-                        { expiresIn: '7d' }
-                    );
-
-                    res.status(201).json({
-                        message: 'User created successfully',
-                        token: token,
-                        user: {
-                            id: this.lastID,
-                            name: name,
-                            email: email,
-                            credits: 200,
-                            is_premium: false
-                        }
-                    });
-                }
-            );
-        });
-    } catch (error) {
-        console.error('Registration error:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-// Login endpoint
-router.post('/login', (req, res) => {
-    const { email, password } = req.body;
-    const db = req.app.locals.db;
-
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required' });
-    }
-
-    db.get(
-        'SELECT id, name, email, password_hash, credits, is_premium FROM users WHERE email = ?',
-        [email],
-        async (err, user) => {
-            if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ error: 'Database error' });
-            }
-
-            if (!user) {
-                return res.status(401).json({ error: 'Invalid email or password' });
-            }
-
-            try {
-                // Check password
-                const isValidPassword = await bcrypt.compare(password, user.password_hash);
-                
-                if (!isValidPassword) {
-                    return res.status(401).json({ error: 'Invalid email or password' });
-                }
-
-                // Generate JWT token
-                const token = jwt.sign(
-                        { userId: user.id, email: user.email },
-                        JWT_SECRET,
-                        { expiresIn: '7d' }
-                    );
-
-                res.json({
-                    message: 'Login successful',
-                    token: token,
-                    user: {
-                        id: user.id,
-                        name: user.name,
-                        email: user.email,
-                        credits: user.credits,
-                        is_premium: user.is_premium === 1
-                    }
-                });
-            } catch (error) {
-                console.error('Login error:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        }
-    );
-});
-
-// Verify token endpoint
-router.get('/verify', (req, res) => {
-    const token = req.headers.authorization?.split(' ')[1];
     
-    if (!token) {
-        return res.status(401).json({ error: 'No token provided' });
+    .auth-background {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+      z-index: -2;
     }
-
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        const db = req.app.locals.db;
-
-        db.get(
-            'SELECT id, name, email, credits, is_premium FROM users WHERE id = ?',
-            [decoded.userId],
-            (err, user) => {
-                if (err) {
-                    console.error('Database error:', err);
-                    return res.status(500).json({ error: 'Database error' });
-                }
-
-                if (!user) {
-                    return res.status(401).json({ error: 'User not found' });
-                }
-
-                res.json({
-                    user: {
-                        id: user.id,
-                        name: user.name,
-                        email: user.email,
-                        credits: user.credits,
-                        is_premium: user.is_premium === 1
-                    }
-                });
-            }
-        );
-    } catch (error) {
-        console.error('Token verification error:', error);
-        res.status(401).json({ error: 'Invalid token' });
+    
+    .auth-pattern {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: 
+        radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.2) 0%, transparent 50%);
+      z-index: -1;
+      animation: float 20s ease-in-out infinite;
     }
-});
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      33% { transform: translateY(-20px) rotate(1deg); }
+      66% { transform: translateY(10px) rotate(-1deg); }
+    }
+    
+    .auth-main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-8) var(--space-4);
+      min-height: calc(100vh - 80px);
+    }
+    
+    .auth-container {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(25px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px;
+      padding: 48px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 
+        0 25px 50px rgba(0, 0, 0, 0.25),
+        0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    
+    .auth-container:hover {
+      transform: translateY(-5px);
+      box-shadow: 
+        0 35px 70px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+    
+    .auth-container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(135deg, #7c77c6, #ff77c6, #77dbff);
+      border-radius: 24px 24px 0 0;
+    }
+    
+    .auth-logo {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    
+    .auth-logo h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #7c77c6, #ff77c6, #77dbff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin: 0;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+    
+    .auth-logo p {
+      color: rgba(255, 255, 255, 0.7);
+      margin: 12px 0 0 0;
+      font-size: 1rem;
+      font-weight: 400;
+      letter-spacing: 0.01em;
+    }
+    
+    .auth-tabs {
+      display: flex;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      padding: 6px;
+      margin-bottom: 32px;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .auth-tab {
+      flex: 1;
+      text-align: center;
+      padding: 14px 20px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.6);
+      position: relative;
+      z-index: 2;
+      font-size: 0.95rem;
+    }
+    
+    .auth-tab.active {
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+      box-shadow: 
+        0 4px 12px rgba(0, 0, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+    
+    .auth-tab:hover:not(.active) {
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.8);
+    }
+    
+    .form-group {
+      margin-bottom: 24px;
+    }
+    
+    .form-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 0.95rem;
+      letter-spacing: 0.01em;
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 16px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      font-size: 1rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      background: rgba(255, 255, 255, 0.05);
+      color: white;
+      backdrop-filter: blur(10px);
+      box-sizing: border-box;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: rgba(124, 119, 198, 0.6);
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: 
+        0 0 0 3px rgba(124, 119, 198, 0.15),
+        0 4px 12px rgba(0, 0, 0, 0.1);
+      transform: translateY(-1px);
+    }
+    
+    .form-input::placeholder {
+      color: rgba(255, 255, 255, 0.4);
+    }
+    
+    .auth-btn {
+      width: 100%;
+      padding: 16px 24px;
+      background: linear-gradient(135deg, #7c77c6, #ff77c6);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+      letter-spacing: 0.01em;
+    }
+    
+    .auth-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s;
+    }
+    
+    .auth-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 
+        0 12px 30px rgba(124, 119, 198, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.1);
+      background: linear-gradient(135deg, #8b86d1, #ff86d1);
+    }
+    
+    .auth-btn:hover::before {
+      left: 100%;
+    }
+    
+    .auth-btn:active {
+      transform: translateY(0px);
+    }
+    
+    .social-divider {
+      display: flex;
+      align-items: center;
+      margin: 24px 0;
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 0.9rem;
+    }
+    
+    .social-divider::before,
+    .social-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.15);
+    }
+    
+    .social-divider span {
+      padding: 0 16px;
+    }
+    
+    .social-btn {
+      width: 100%;
+      padding: 16px 20px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+    }
+    
+    .social-btn:hover {
+      border-color: rgba(124, 119, 198, 0.4);
+      background: rgba(255, 255, 255, 0.08);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    }
+    
+    .social-btn i {
+      font-size: 1.2rem;
+      color: #DB4437;
+    }
+    
+    .forgot-link {
+      color: #7c77c6;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    
+    .forgot-link:hover {
+      color: #ff77c6;
+      text-decoration: underline;
+    }
+    
+    .checkbox-group {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    
+    .checkbox-group input[type="checkbox"] {
+      margin-top: 2px;
+      accent-color: #7c77c6;
+      width: 16px;
+      height: 16px;
+    }
+    
+    .checkbox-group label {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.5;
+    }
+    
+    .checkbox-group a {
+      color: #7c77c6;
+      text-decoration: none;
+      transition: color 0.3s ease;
+    }
+    
+    .checkbox-group a:hover {
+      color: #ff77c6;
+      text-decoration: underline;
+    }
+    
+    /* Mobile Responsiveness Improvements */
+    @media (max-width: 1024px) {
+      .auth-container {
+        max-width: 420px;
+        padding: 40px;
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .auth-container {
+        padding: 32px;
+        margin: 16px;
+        max-width: calc(100vw - 32px);
+      }
+      
+      .auth-main {
+        padding: 16px;
+        min-height: calc(100vh - 60px);
+      }
+      
+      .auth-logo h1 {
+        font-size: 2rem;
+      }
+      
+      .form-input {
+        padding: 14px 16px;
+        font-size: 16px; /* Prevents zoom on iOS */
+      }
+      
+      .auth-btn {
+        padding: 14px 20px;
+        font-size: 1rem;
+      }
+      
+      .social-btn {
+        padding: 14px 16px;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .auth-container {
+        padding: 24px;
+        margin: 12px;
+        border-radius: 20px;
+      }
+      
+      .auth-main {
+        padding: 12px;
+      }
+      
+      .auth-logo {
+        margin-bottom: 32px;
+      }
+      
+      .auth-logo h1 {
+        font-size: 1.8rem;
+      }
+      
+      .auth-logo p {
+        font-size: 0.9rem;
+      }
+      
+      .auth-tab {
+        padding: 12px 16px;
+        font-size: 0.9rem;
+      }
+      
+      .form-label {
+        font-size: 0.9rem;
+      }
+      
+      .checkbox-group label {
+        font-size: 0.85rem;
+      }
+      
+      .form-group {
+        margin-bottom: 20px;
+      }
+    }
+    .google-btn i {
+      color: #DB4437;
+    }
+    
+    .plan-indicator {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      text-align: center;
+      font-size: 14px;
+    }
+    
+    .plan-indicator p {
+      margin: 0;
+    }
+    .footer {
+      padding: var(--space-8) 0;
+      background-color: var(--bg-gray-100);
+      margin-top: 50px;
+    }
+    .footer-content {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--space-6);
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 var(--space-4);
+    }
+    .footer-column h3 {
+      font-size: 1.2rem;
+      margin-bottom: var(--space-4);
+    }
+    .footer-links {
+      list-style: none;
+    }
+    .footer-links li {
+      margin-bottom: var(--space-2);
+    }
+    .footer-links a {
+      color: var(--text-gray);
+      font-size: 0.9rem;
+    }
+    .footer-links a:hover {
+      color: var(--primary-purple);
+    }
+    .footer-bottom {
+      text-align: center;
+      padding-top: var(--space-6);
+      margin-top: var(--space-6);
+      border-top: 1px solid var(--bg-gray-200);
+      color: var(--text-gray);
+      font-size: 0.9rem;
+    }
+    .social-icons {
+      display: flex;
+      gap: var(--space-4);
+      margin-top: var(--space-4);
+    }
+    .social-icons a {
+      color: var(--text-gray);
+      font-size: 1.2rem;
+    }
+    .social-icons a:hover {
+      color: var(--primary-purple);
+    }
+    
+    /* Mobile Navigation Styles */
+    .mobile-menu-toggle {
+      display: none;
+      flex-direction: column;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0.5rem;
+      z-index: 1001;
+    }
+    
+    .mobile-menu-toggle span {
+      width: 25px;
+      height: 3px;
+      background: white;
+      margin: 3px 0;
+      transition: 0.3s;
+      border-radius: 2px;
+    }
+    
+    .mobile-menu-toggle.active span:nth-child(1) {
+      transform: rotate(-45deg) translate(-5px, 6px);
+    }
+    
+    .mobile-menu-toggle.active span:nth-child(2) {
+      opacity: 0;
+    }
+    
+    .mobile-menu-toggle.active span:nth-child(3) {
+      transform: rotate(45deg) translate(-5px, -6px);
+    }
+    
+    @media (max-width: 768px) {
+      .nav-links {
+        position: fixed;
+        top: 0;
+        right: -100%;
+        width: 100%;
+        height: 100vh;
+        background: rgba(30, 41, 59, 0.98);
+        backdrop-filter: blur(20px);
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        transition: right 0.3s ease;
+        z-index: 1000;
+      }
+      
+      .nav-links.active {
+        right: 0;
+      }
+      
+      .nav-links li {
+        margin: 1rem 0;
+      }
+      
+      .nav-links a {
+        font-size: 1.5rem;
+        color: white;
+        font-weight: 600;
+      }
+      
+      .mobile-menu-toggle {
+        display: flex;
+      }
+      
+      .header {
+        backdrop-filter: blur(25px);
+        background: rgba(255, 255, 255, 0.05);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      
+      .nav a {
+        color: rgba(255, 255, 255, 0.9);
+      }
+      
+      .logo {
+        background: linear-gradient(135deg, #7c77c6, #ff77c6);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-background"></div>
+  <div class="auth-pattern"></div>
+  
+  <!-- Header with Navigation -->
+  <header class="header">
+    <div class="container">
+      <nav class="nav">
+        <a href="index.html" class="logo">AssignSavvy</a>
+        <ul class="nav-links">
+          <li><a href="index.html">Home</a></li>
+          <li><a href="pricing.html">Pricing</a></li>
 
-module.exports = router;
+          <li><a href="#">Contact</a></li>
+        </ul>
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="auth-main">
+    <!-- Auth Container -->
+    <div class="auth-container">
+      <div class="auth-logo">
+        <h1>📚 AssignSavvy</h1>
+        <p>Your AI-powered academic companion</p>
+      </div>
+      
+      <!-- Auth Tabs -->
+      <div class="auth-tabs">
+        <div class="auth-tab active" id="login-tab">Login</div>
+        <div class="auth-tab" id="signup-tab">Sign Up</div>
+      </div>
+      
+      <!-- Login Form -->
+      <form id="login-form" class="auth-form">
+        <div class="form-group">
+          <label for="login-email" class="form-label">Email Address</label>
+          <input type="email" id="login-email" class="form-input" placeholder="Enter your email" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="login-password" class="form-label">Password</label>
+          <input type="password" id="login-password" class="form-input" placeholder="Enter your password" required>
+        </div>
+        
+        <div class="form-group" style="text-align: right;">
+          <a href="#" class="forgot-link">Forgot Password?</a>
+        </div>
+        
+        <button type="submit" class="auth-btn">Sign In</button>
+        
+        <!-- Social Login Options -->
+        <div class="social-divider">
+          <span>or continue with</span>
+        </div>
+        
+        <button type="button" class="social-btn">
+          <i class="fab fa-google"></i> Continue with Google
+        </button>
+      </form>
+    
+      <!-- Sign Up Form -->
+      <form id="signup-form" class="auth-form" style="display: none;">
+        <div id="plan-indicator" class="plan-indicator" style="display: none;">
+          <p><strong>Selected Plan:</strong> <span id="selected-plan-name"></span></p>
+        </div>
+        
+        <div class="form-group">
+          <label for="signup-name" class="form-label">Full Name</label>
+          <input type="text" id="signup-name" class="form-input" placeholder="Enter your full name" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="signup-email" class="form-label">Email Address</label>
+          <input type="email" id="signup-email" class="form-input" placeholder="Enter your email" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="signup-password" class="form-label">Password</label>
+          <input type="password" id="signup-password" class="form-input" placeholder="Create a password" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="signup-confirm-password" class="form-label">Confirm Password</label>
+          <input type="password" id="signup-confirm-password" class="form-input" placeholder="Confirm your password" required>
+        </div>
+        
+        <div class="form-group">
+          <div class="checkbox-group">
+            <input type="checkbox" id="terms" required>
+            <label for="terms">I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a></label>
+          </div>
+        </div>
+        
+        <button type="submit" class="auth-btn">Create Account</button>
+        
+        <!-- Social Login Options -->
+        <div class="social-divider">
+          <span>or sign up with</span>
+        </div>
+        
+        <button type="button" class="social-btn">
+          <i class="fab fa-google"></i> Sign up with Google
+        </button>
+      </form>
+    </div>
+  </main>
+
+  <!-- Footer Section -->
+  <footer class="footer">
+    <div class="footer-content">
+      <div class="footer-column">
+        <h3>📚 AssignSavvy</h3>
+        <p>Empowering students with AI-driven academic tools for better learning outcomes.</p>
+        <div class="social-icons">
+          <a href="#"><i class="fab fa-facebook"></i></a>
+        
+        </div>
+      </div>
+      
+      <div class="footer-column">
+        <h3>Product</h3>
+        <ul class="footer-links">
+          <li><a href="#">AI Writer</a></li>
+          <li><a href="#">Smart Researcher</a></li>
+          <li><a href="#">Originality Detector</a></li>
+          <li><a href="#">Prompt Engineer</a></li>
+        </ul>
+      </div>
+      
+      <div class="footer-column">
+        <h3>Company</h3>
+        <ul class="footer-links">
+          <li><a href="#">About Us</a></li>
+          <li><a href="#">Careers</a></li>
+          <li><a href="#">Contact</a></li>
+          <li><a href="#">Blog</a></li>
+        </ul>
+      </div>
+      
+      <div class="footer-column">
+        <h3>Legal</h3>
+        <ul class="footer-links">
+          <li><a href="#">Privacy Policy</a></li>
+          <li><a href="#">Terms of Service</a></li>
+          <li><a href="#">Cookie Policy</a></li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="footer-bottom">
+      <p>&copy; 2024 AssignSavvy. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script>
+    // Tab switching functionality
+    const loginTab = document.getElementById('login-tab');
+    const signupTab = document.getElementById('signup-tab');
+    const loginForm = document.getElementById('login-form');
+    const signupForm = document.getElementById('signup-form');
+
+    loginTab.addEventListener('click', () => {
+      loginTab.classList.add('active');
+      signupTab.classList.remove('active');
+      loginForm.style.display = 'block';
+      signupForm.style.display = 'none';
+    });
+
+    signupTab.addEventListener('click', () => {
+      signupTab.classList.add('active');
+      loginTab.classList.remove('active');
+      signupForm.style.display = 'block';
+      loginForm.style.display = 'none';
+    });
+    
+    // Get plan parameter from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const selectedPlan = urlParams.get('plan') || 'free';
+    
+    // Debug logging
+    console.log('Selected plan from URL:', selectedPlan);
+    
+    // Show plan indicator if a plan is selected
+    if (selectedPlan && selectedPlan !== 'free') {
+      const planIndicator = document.getElementById('plan-indicator');
+      const planNameSpan = document.getElementById('selected-plan-name');
+      
+      if (planIndicator && planNameSpan) {
+        const planNames = {
+          'pro': 'Pro Plan ($19.99/month)',
+          'custom': 'Custom Plan (Contact for pricing)'
+        };
+        
+        planNameSpan.textContent = planNames[selectedPlan] || selectedPlan.toUpperCase();
+        planIndicator.style.display = 'block';
+      }
+    }
+    
+    // Function to handle post-authentication redirect
+    function handlePostAuthRedirect() {
+      console.log('Handling redirect for plan:', selectedPlan);
+      
+      if (selectedPlan === 'free') {
+        console.log('Redirecting to dashboard (free plan)');
+        window.location.href = 'dashboard.html';
+      } else if (selectedPlan === 'pro' || selectedPlan === 'custom') {
+        console.log('Redirecting to payment page for plan:', selectedPlan);
+        window.location.href = `payment.html?plan=${selectedPlan}`;
+      } else {
+        console.log('Redirecting to dashboard (default)');
+        window.location.href = 'dashboard.html';
+      }
+    }
+    
+    // Form submission handlers with mock authentication
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      
+      // Simple validation
+      if (!email || !password) {
+        alert('Please enter both email and password');
+        return;
+      }
+      
+      // Mock authentication - check if user exists in localStorage
+      const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
+      const user = users.find(u => u.email === email && u.password === password);
+      
+      if (user) {
+        // Successful login
+        const mockToken = 'mock-jwt-token-' + Date.now();
+        localStorage.setItem('authToken', mockToken);
+        localStorage.setItem('user', JSON.stringify({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          credits: user.credits || 200,
+          is_premium: user.is_premium || false,
+          plan: user.plan || 'free'
+        }));
+        
+        // Update userSession with the logged in user data
+        if (window.userSession) {
+          window.userSession.updateUser({
+            name: user.name,
+            email: user.email,
+            plan: user.plan || 'free',
+            credits: user.credits || 200,
+            maxCredits: user.plan === 'pro' ? 1000 : user.plan === 'custom' ? 2000 : 200
+          });
+        }
+        
+        alert('Login successful!');
+        handlePostAuthRedirect();
+      } else {
+        alert('Invalid email or password. Try demo@example.com / password123');
+      }
+    });
+    
+    document.getElementById('signup-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const name = document.getElementById('signup-name').value;
+      const email = document.getElementById('signup-email').value;
+      const password = document.getElementById('signup-password').value;
+      const confirmPassword = document.getElementById('signup-confirm-password').value;
+      
+      // Validation
+      if (!name || !email || !password) {
+        alert('Please fill in all fields');
+        return;
+      }
+      
+      if (password !== confirmPassword) {
+        alert('Passwords do not match');
+        return;
+      }
+      
+      if (password.length < 6) {
+        alert('Password must be at least 6 characters');
+        return;
+      }
+      
+      // Check if user already exists
+      const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
+      if (users.find(u => u.email === email)) {
+        alert('User already exists with this email');
+        return;
+      }
+      
+      // Create new user
+      const newUser = {
+        id: Date.now(),
+        name: name,
+        email: email,
+        password: password, // In real app, this would be hashed
+        credits: selectedPlan === 'pro' ? 1000 : selectedPlan === 'custom' ? 2000 : 200,
+        is_premium: selectedPlan === 'pro' || selectedPlan === 'custom',
+        plan: selectedPlan || 'free',
+        created_at: new Date().toISOString()
+      };
+      
+      users.push(newUser);
+      localStorage.setItem('registeredUsers', JSON.stringify(users));
+      
+      // Auto-login the new user
+      const mockToken = 'mock-jwt-token-' + Date.now();
+      localStorage.setItem('authToken', mockToken);
+      localStorage.setItem('user', JSON.stringify({
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        credits: newUser.credits,
+        is_premium: newUser.is_premium,
+        plan: newUser.plan
+      }));
+      
+      // Update userSession with the new user data
+      if (window.userSession) {
+        window.userSession.updateUser({
+          name: newUser.name,
+          email: newUser.email,
+          plan: newUser.plan,
+          credits: newUser.credits,
+          maxCredits: newUser.plan === 'pro' ? 1000 : newUser.plan === 'custom' ? 2000 : 200
+        });
+      }
+      
+      alert('Account created successfully!');
+      
+      // Add a small delay and confirmation for payment redirect
+      if (selectedPlan === 'pro' || selectedPlan === 'custom') {
+        setTimeout(() => {
+          if (confirm(`You will now be redirected to complete payment for the ${selectedPlan.toUpperCase()} plan. Continue?`)) {
+            handlePostAuthRedirect();
+          } else {
+            window.location.href = 'dashboard.html';
+          }
+        }, 500);
+      } else {
+        handlePostAuthRedirect();
+      }
+    });
+    
+    // Initialize demo user if not exists
+    const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
+    if (!users.find(u => u.email === 'demo@example.com')) {
+      users.push({
+        id: 1,
+        name: 'Demo User',
+        email: 'demo@example.com',
+        password: 'password123',
+        credits: 500,
+        is_premium: false,
+        plan: 'free',
+        created_at: new Date().toISOString()
+      });
+      localStorage.setItem('registeredUsers', JSON.stringify(users));
+    }
+    
+    // Mobile menu functionality
+    const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+    const navLinks = document.querySelector('.nav-links');
+    
+    if (mobileMenuToggle) {
+      mobileMenuToggle.addEventListener('click', () => {
+        mobileMenuToggle.classList.toggle('active');
+        navLinks.classList.toggle('active');
+      });
+      
+      // Close menu when clicking on a link
+      navLinks.addEventListener('click', (e) => {
+        if (e.target.tagName === 'A') {
+          mobileMenuToggle.classList.remove('active');
+          navLinks.classList.remove('active');
+        }
+      });
+      
+      // Close menu when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!mobileMenuToggle.contains(e.target) && !navLinks.contains(e.target)) {
+          mobileMenuToggle.classList.remove('active');
+          navLinks.classList.remove('active');
+        }
+      });
+    }
+  </script>
+
+
+</body>
+</html>
