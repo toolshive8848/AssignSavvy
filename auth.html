@@ -810,8 +810,20 @@
           name: user.name,
           email: user.email,
           credits: user.credits || 200,
-          is_premium: user.is_premium || false
+          is_premium: user.is_premium || false,
+          plan: user.plan || 'free'
         }));
+        
+        // Update userSession with the logged in user data
+        if (window.userSession) {
+          window.userSession.updateUser({
+            name: user.name,
+            email: user.email,
+            plan: user.plan || 'free',
+            credits: user.credits || 200,
+            maxCredits: user.plan === 'pro' ? 1000 : user.plan === 'custom' ? 2000 : 200
+          });
+        }
         
         alert('Login successful!');
         handlePostAuthRedirect();
@@ -857,8 +869,9 @@
         name: name,
         email: email,
         password: password, // In real app, this would be hashed
-        credits: 200,
-        is_premium: false,
+        credits: selectedPlan === 'pro' ? 1000 : selectedPlan === 'custom' ? 2000 : 200,
+        is_premium: selectedPlan === 'pro' || selectedPlan === 'custom',
+        plan: selectedPlan || 'free',
         created_at: new Date().toISOString()
       };
       
@@ -873,8 +886,20 @@
         name: newUser.name,
         email: newUser.email,
         credits: newUser.credits,
-        is_premium: newUser.is_premium
+        is_premium: newUser.is_premium,
+        plan: newUser.plan
       }));
+      
+      // Update userSession with the new user data
+      if (window.userSession) {
+        window.userSession.updateUser({
+          name: newUser.name,
+          email: newUser.email,
+          plan: newUser.plan,
+          credits: newUser.credits,
+          maxCredits: newUser.plan === 'pro' ? 1000 : newUser.plan === 'custom' ? 2000 : 200
+        });
+      }
       
       alert('Account created successfully!');
       
