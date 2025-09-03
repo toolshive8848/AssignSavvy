@@ -1365,38 +1365,19 @@
     </div>
   </div>
   
+  <!-- User Session Manager -->
+  <script src="js/userSession.js"></script>
+  
   <script>
-  //<![CDATA[
-    // User profile functionality
-    let currentUser = {
-      name: 'User Name',
-      email: 'john.doe@example.com',
-      plan: 'free',
-      credits: 145,
-      maxCredits: 200
-    };
-
+    // Load user profile data
     function loadUserProfile() {
-      // Update sidebar user info
-      document.getElementById('user-name').textContent = currentUser.name;
-      document.getElementById('user-plan').textContent = currentUser.plan === 'free' ? 'Free Plan' : 'Pro Plan';
-      document.getElementById('user-credits').textContent = `${currentUser.credits}/${currentUser.maxCredits} Credits`;
-      
-      // Update modal user info
-      document.getElementById('modal-user-name').textContent = currentUser.name;
-      document.getElementById('modal-user-email').textContent = currentUser.email;
-      document.getElementById('modal-user-plan').textContent = currentUser.plan === 'free' ? 'Free Plan' : 'Pro Plan';
-      document.getElementById('modal-user-credits').textContent = `${currentUser.credits}/${currentUser.maxCredits} Credits`;
+      // Now handled by UserSessionManager
+      window.userSession.updateAllDisplays();
     }
 
-    function logout() {
-      if (confirm('Are you sure you want to logout?')) {
-        // Clear user data
-        localStorage.removeItem('userToken');
-        localStorage.removeItem('userData');
-        // Redirect to auth page
-        window.location.href = 'auth.html';
-      }
+    // Get current user data
+    function getCurrentUser() {
+      return window.userSession.getCurrentUser();
     }
 
     let uploadedFiles = [];
@@ -2183,7 +2164,6 @@
         dropdown.style.display = 'none';
       }
     });
-  //]]>
   </script>
 
 
