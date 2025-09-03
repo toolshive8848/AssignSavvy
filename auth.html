@@ -926,7 +926,8 @@
         email: 'demo@example.com',
         password: 'password123',
         credits: 500,
-        is_premium: true,
+        is_premium: false,
+        plan: 'free',
         created_at: new Date().toISOString()
       });
       localStorage.setItem('registeredUsers', JSON.stringify(users));
