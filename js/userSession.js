@@ -127,6 +127,9 @@ class UserSessionManager {
      * Initialize user session on page load
      */
     init() {
+        // Reload user data from localStorage in case it was updated
+        this.currentUser = this.loadUserData();
+        
         // Wait for DOM to be ready
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
