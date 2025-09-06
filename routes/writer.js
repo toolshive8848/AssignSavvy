@@ -12,9 +12,55 @@ const PlanValidator = require('../services/planValidator');
 const router = express.Router();
 const fileProcessingService = new FileProcessingService();
 const llmService = new LLMService();
+const contentDatabase = new ContentDatabase();
+const multiPartGenerator = new MultiPartGenerator();
+const atomicCreditSystem = new AtomicCreditSystem();
+const planValidator = new PlanValidator();
+
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit
+        files: 5 // Maximum 5 files
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['.pdf', '.docx', '.txt'];
+        const fileExt = path.extname(file.originalname).toLowerCase();
+        
+        if (allowedTypes.includes(fileExt)) {
+            cb(null, true);
+        } else {
+            cb(new Error(`Unsupported file type: ${fileExt}. Allowed types: ${allowedTypes.join(', ')}`));
+        }
+    }
+});
+
+// Mock function for assignment generation (to be replaced with actual implementation)
+const generateAssignmentContent = async (title, prompt, wordCount, citationStyle) => {
+    const mockContent = `
+# ${title}
+
+## Introduction
+
+This assignment explores the topic of "${title}" through comprehensive analysis and research. The following sections provide detailed examination of key concepts and their implications.
+
+## Main Body
+
+The central theme of this assignment revolves around understanding the complexities inherent in the subject matter. Through careful consideration of various perspectives, we can develop a more nuanced understanding of the topic.
+
+### Key Points
+
+1. **Primary Analysis**: The first major point addresses the fundamental aspects of the topic, providing essential background information necessary for deeper understanding.
+
+2. **Secondary Considerations**: Building upon the primary analysis, this section explores additional factors that contribute to the overall complexity of the subject.
+
+3. **Critical Evaluation**: This section presents a critical assessment of the various viewpoints and approaches discussed in the literature.
+
 ## Conclusion
 
-In conclusion, this analysis of "${title}\" reveals significant insights that contribute to the broader understanding of the subject matter. The implications of these findings extend beyond the immediate scope of this assignment.
+In conclusion, this analysis of "${title}" reveals significant insights that contribute to the broader understanding of the subject matter. The implications of these findings extend beyond the immediate scope of this assignment.
 
 ## References
 
@@ -65,6 +111,8 @@ router.post('/generate', authenticateToken, async (req, res) => {
         if (wordCount < 100 || wordCount > 2000) {
             return res.status(400).json({
                 success: false,
+                error: 'Word count must be between 100 and 2000'
+            });
         }
         
         // For assignment type, require title
@@ -86,6 +134,28 @@ router.post('/generate', authenticateToken, async (req, res) => {
                 success: false,
                 error: planValidation.error || 'Plan validation failed'
             });
+        }
+        
+        // Calculate credits needed based on quality tier
+        // Standard: 1 credit per 3 words, Premium: 2x credits (2 credits per 3 words)
+        let baseCreditsNeeded = Math.ceil(wordCount / 3); // 1 credit per 3 words
+        const creditsNeeded = qualityTier === 'premium' ? baseCreditsNeeded * 2 : baseCreditsNeeded;
+        
+        // Deduct credits atomically
+        const creditResult = await atomicCreditSystem.deductCreditsAtomic(
+            userId,
+            creditsNeeded,
+            planValidation.userPlan.planType,
+            'writing'
+        );
+        
+        if (!creditResult.success) {
+            return res.status(400).json({
+                success: false,
+                error: `Insufficient credits. Need ${creditsNeeded}, available: ${creditResult.previousBalance || 0}`
+            });
+        }
+        
         try {
             let result;
             let contentSource = 'new_generation';
@@ -100,7 +170,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
             
             // Handle assignment generation with premium features integration
             if (contentType === 'assignment') {
-                console.log(\`Generating assignment: ${assignmentTitle} (Quality: ${qualityTier})`);
+                console.log(`Generating assignment: ${assignmentTitle} (Quality: ${qualityTier})`);
                 
                 if (qualityTier === 'premium' && (useMultiPart || enableRefinement)) {
                     // Use multi-part generation with refinement for premium assignments
@@ -108,13 +178,13 @@ router.post('/generate', authenticateToken, async (req, res) => {
                     
                     result = await multiPartGenerator.generateMultiPartContent({
                         userId,
-                        prompt: \`Assignment Title: ${assignmentTitle}\n\nInstructions: ${prompt}`,
+                        prompt: `Assignment Title: ${assignmentTitle}\n\nInstructions: ${prompt}`,
                         requestedWordCount: wordCount,
                         userPlan: planValidation.userPlan.planType,
                         style,
                         tone,
                         subject: assignmentTitle,
-                        additionalInstructions: \`Generate academic assignment with ${citationStyle} citations`,
+                        additionalInstructions: `Generate academic assignment with ${citationStyle} citations`,
                         requiresCitations: true,
                         newBalance: creditResult.newBalance,
                         qualityTier: qualityTier,
@@ -122,10 +192,11 @@ router.post('/generate', authenticateToken, async (req, res) => {
                     });
                     
                     contentSource = result.usedSimilarContent ? 'assignment_multipart_optimized' : 'assignment_multipart_new';
+                } else {
                     // Use multi-part generation for all assignments to ensure quality
                     
                     result = {
-                        content: \`Assignment generation requires multi-part processing. Please use the multi-part generator.`,
+                        content: `Assignment generation requires multi-part processing. Please use the multi-part generator.`,
                         wordCount: 0,
                         generationTime: 0,
                         source: 'error',
@@ -135,7 +206,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
                     contentSource = 'error';
                 }
             } else if (useMultiPart) {
-                console.log(\`Using multi-part generation for ${wordCount} words`);
+                console.log(`Using multi-part generation for ${wordCount} words`);
                 
                 // Use MultiPartGenerator for chunk-based generation with iterative detection
                 result = await multiPartGenerator.generateMultiPartContent({
@@ -230,7 +301,6 @@ router.post('/generate', authenticateToken, async (req, res) => {
                     creditsNeeded,
                     wordCount
                 );
-                console.log(`Credits refunded to user ${userId}: ${creditsNeeded} credits`);
             } catch (rollbackError) {
                 console.error('Credit rollback failed:', rollbackError);
             }
@@ -238,8 +308,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
             return res.status(500).json({
                 success: false,
                 error: 'Content generation failed',
-                details: generationError.message,
-                creditsRefunded: true
+                details: generationError.message
             });
         }
         
@@ -306,7 +375,7 @@ router.post('/upload-and-generate', authenticateToken, upload.array('files', 5),
         if (!creditResult.success) {
             return res.status(400).json({
                 success: false,
-                error: \`Insufficient credits. Need ${creditsNeeded}, available: ${creditResult.previousBalance || 0}`
+                error: `Insufficient credits. Need ${creditsNeeded}, available: ${creditResult.previousBalance || 0}`
             });
         }
         
@@ -346,7 +415,7 @@ router.post('/upload-and-generate', authenticateToken, upload.array('files', 5),
             const enableRefinement = qualityTier === 'premium';
             
             if (useMultiPart) {
-                console.log(\`Using multi-part generation for file-based content: ${wordCount} words`);
+                console.log(`Using multi-part generation for file-based content: ${wordCount} words`);
                 
                 // Use MultiPartGenerator for chunk-based generation with iterative detection
                 llmResult = await multiPartGenerator.generateMultiPartContent({
@@ -544,7 +613,7 @@ router.post('/validate-files', upload.array('files', 5), (req, res) => {
                 name: file.originalname,
                 size: file.size,
                 type: path.extname(file.originalname).toLowerCase(),
-                sizeFormatted: \`${(file.size / 1024 / 1024).toFixed(2)} MB`
+                sizeFormatted: `${(file.size / 1024 / 1024).toFixed(2)} MB`
             }))
         });
         
@@ -587,6 +656,7 @@ router.use((error, req, res, next) => {
     }
     
     if (error.message.includes('Unsupported file type')) {
+        return res.status(400).json({
             success: false,
             error: 'Unsupported file type',
             details: error.message

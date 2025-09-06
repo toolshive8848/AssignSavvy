@@ -210,7 +210,8 @@ class MultiPartGenerator {
             };
         } catch (error) {
             console.error('Error in multi-part generation:', error);
-            throw error;
+            // Don't return mock content - let the calling function handle credit refunds
+            throw new Error(`Multi-part content generation failed: ${error.message}`);
         }
     }
 
