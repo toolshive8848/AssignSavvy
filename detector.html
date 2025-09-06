@@ -187,6 +187,13 @@
             <p class="text-gray">Enter content to analyze</p>
           </div>
           
+          <!-- Loading State for Analysis -->
+          <div id="loading-content" style="display: none;" class="text-center py-12">
+            <div class="spinner mb-4"></div>
+            <h4>Analyzing Content...</h4>
+            <p class="text-gray" id="loading-message">Processing your content</p>
+          </div>
+          
           <!-- Results State (Hidden by default) -->
           <div id="results-container" style="display: none;">
             <!-- Dynamic Results Container - Populated by JavaScript -->
@@ -541,6 +548,16 @@
         }
         
         dynamicResults.innerHTML = resultsHTML;
+        
+        // Show/hide remove button based on detection results
+        const hasIssues = checkIfHasIssues(results);
+        const removeAllBtn = document.getElementById('remove-all-btn');
+        if (removeAllBtn) {
+          removeAllBtn.style.display = hasIssues ? 'block' : 'none';
+          if (hasIssues) {
+            removeAllBtn.innerHTML = '<i class="fas fa-magic"></i> Remove All Issues';
+          }
+        }
       }
       
       function showAnalysisLoading(message) {
