@@ -153,19 +153,20 @@ router.get('/config', (req, res) => {
 router.get('/history/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const db = req.app.locals.db;
         
-        db.all(
-            'SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 50',
-            [userId],
-            (err, payments) => {
-                if (err) {
-                    console.error('Error fetching payment history:', err);
-                    return res.status(500).json({ error: 'Failed to fetch payment history' });
-                }
-                res.json({ payments });
-            }
-        );
+        const paymentsSnapshot = await admin.firestore()
+            .collection('payments')
+            .where('userId', '==', userId)
+            .orderBy('createdAt', 'desc')
+            .limit(50)
+            .get();
+        
+        const payments = paymentsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        
+        res.json({ payments });
     } catch (error) {
         console.error('Error in payment history:', error);
         res.status(500).json({ error: 'Failed to fetch payment history' });

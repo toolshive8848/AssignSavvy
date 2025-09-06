@@ -299,12 +299,12 @@
         const planConfigs = {
             pro: {
                 name: 'Pro Plan',
-                credits: '2,000 credits',
+                credits: 2000,
                 amount: '$9.99'
             },
             custom: {
                 name: 'Custom Plan',
-                credits: '3,300 credits',
+                credits: 3300,
                 amount: '$15.00'
             }
         };
@@ -314,7 +314,7 @@
             const config = planConfigs[planType] || planConfigs.pro;
             
             document.getElementById('plan-name').textContent = config.name;
-            document.getElementById('credits-amount').textContent = config.credits;
+            document.getElementById('credits-amount').textContent = `${config.credits.toLocaleString()} credits`;
             document.getElementById('amount-paid').textContent = config.amount;
             
             if (paymentIntentId) {
