@@ -177,6 +177,7 @@ router.post('/query', authenticateToken, async (req, res) => {
           wordCount: researchResult.wordCount,
           processingTime,
           creditsUsed: finalCreditsUsed,
+          newBalance: creditDeductionResult.newBalance,
           timestamp: new Date().toISOString(),
           sources: researchResult.data.sources || [],
           citations: researchResult.data.citations || [],

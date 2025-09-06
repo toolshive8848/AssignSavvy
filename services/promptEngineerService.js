@@ -285,7 +285,7 @@ Focus on practical improvements that will genuinely enhance the prompt's effecti
                     inputWords,
                     outputWords: actualOutputWords,
                     creditsUsed: limitCheck.creditsNeeded || 0,
-                    dailyUsage: await this.getDailyUsage(userId)
+                    newBalance: creditTransaction ? creditTransaction.newBalance : null
                 };
 
             } catch (optimizationError) {
@@ -379,7 +379,7 @@ Focus on practical improvements that will genuinely enhance the prompt's effecti
                     inputWords,
                     outputWords: actualOutputWords,
                     creditsUsed: limitCheck.creditsNeeded || 0,
-                    dailyUsage: await this.getDailyUsage(userId)
+                    newBalance: creditTransaction ? creditTransaction.newBalance : null
                 };
 
             } catch (analysisError) {

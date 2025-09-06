@@ -73,6 +73,11 @@ class UserSessionManager {
         this.currentUser = { ...this.currentUser, ...userData };
         this.saveUserData();
         this.updateAllDisplays();
+        
+        // Log credit updates for debugging
+        if (userData.credits !== undefined) {
+            console.log(`User credits updated: ${userData.credits}/${this.currentUser.maxCredits}`);
+        }
     }
 
     /**

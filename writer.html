@@ -486,7 +486,7 @@
 
         if (result.success) {
           displayGeneratedContent(result);
-          updateUserCredits(result.metadata.remainingCredits);
+          updateUserCredits(result.metadata.creditsUsed, result.metadata.newBalance);
         } else {
           throw new Error(result.error || 'Generation failed');
         }
@@ -629,7 +629,7 @@
 
         if (result.success) {
           displayGeneratedContent(result);
-          updateUserCredits(result.metadata.remainingCredits);
+          updateUserCredits(result.metadata.creditsUsed, result.metadata.newBalance);
           document.getElementById('upload-modal').style.display = 'none';
         } else {
           throw new Error(result.error || 'File processing failed');
@@ -700,9 +700,16 @@
       }
     }
 
-    function updateUserCredits(newBalance) {
-      if (window.userSession && newBalance !== undefined) {
+    function updateUserCredits(creditsUsed, newBalance) {
+      if (window.userSession) {
+        // Use server-provided balance if available, otherwise calculate locally
+        const finalBalance = newBalance !== undefined ? newBalance : (() => {
+          const currentUser = window.userSession.getCurrentUser();
+          return Math.max(0, currentUser.credits - (creditsUsed || 0));
+        })();
+        
         window.userSession.updateUser({ credits: newBalance });
+        console.log(`Credits updated: Used ${creditsUsed}, New balance: ${finalBalance}`);
       }
     }
 

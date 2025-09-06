@@ -73,7 +73,10 @@ router.post('/analyze', authenticateToken, async (req, res) => {
     res.json({
       success: true,
       message: 'Content analysis completed successfully',
-      data: result
+      data: {
+        ...result,
+        newBalance: creditDeductionResult.newBalance
+      }
     });
 
   } catch (error) {
@@ -278,6 +281,7 @@ router.post('/workflow', authenticateToken, async (req, res) => {
         cyclesUsed: result.cyclesUsed,
         detectedWordCount: result.detectedWordCount,
         totalCreditsUsed: result.totalCreditsUsed,
+        newBalance: creditDeductionResult.newBalance + removalCreditResult.newBalance,
         improvementSummary: {
           plagiarismReduced: result.initialDetection.plagiarism && result.finalDetection.plagiarism ? 
             result.initialDetection.plagiarism.score - result.finalDetection.plagiarism.score : 0,

@@ -215,7 +215,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
                         subject: assignmentTitle,
                         additionalInstructions: `Generate academic assignment with ${citationStyle} citations`,
                         requiresCitations: true,
-                        citationStyle: citationStyle,
+                        newBalance: creditResult.newBalance,
                         qualityTier: qualityTier,
                         enableRefinement: enableRefinement
                     });
@@ -630,10 +630,12 @@ router.post('/upload-and-generate', authenticateToken, upload.array('files', 5),
                 response.metadata.isAcceptable = llmResult.finalDetectionResults?.isAcceptable || true;
                 response.metadata.detectionConfidence = llmResult.finalDetectionResults?.confidence || null;
                 response.metadata.detectionRecommendations = llmResult.finalDetectionResults?.recommendations || [];
+                response.metadata.newBalance = creditResult.newBalance;
             } else {
                 // Add single-generation metadata
                 response.metadata.isMultiPart = false;
                 response.metadata.similarContentFound = contentSource === 'optimized_existing';
+                response.metadata.newBalance = creditResult.newBalance;
             }
             
             res.json(response);

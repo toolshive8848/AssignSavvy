@@ -1153,7 +1153,7 @@
         
         if (data.success) {
           displayOptimizedPrompt(data);
-          updateUserCredits(data.creditsUsed);
+          updateUserCredits(data.creditsUsed, data.newBalance);
         } else {
           throw new Error(data.error || 'Optimization failed');
         }
@@ -1285,11 +1285,16 @@
     }
     
     // Update user credits
-    function updateUserCredits(creditsUsed) {
-      if (window.userSession && creditsUsed !== undefined) {
-        const currentUser = window.userSession.getCurrentUser();
-        const newBalance = Math.max(0, currentUser.credits - creditsUsed);
-        window.userSession.updateUser({ credits: newBalance });
+    function updateUserCredits(creditsUsed, newBalance) {
+      if (window.userSession) {
+        // Use server-provided balance if available, otherwise calculate locally
+        const finalBalance = newBalance !== undefined ? newBalance : (() => {
+          const currentUser = window.userSession.getCurrentUser();
+          return Math.max(0, currentUser.credits - (creditsUsed || 0));
+        })();
+        
+        window.userSession.updateUser({ credits: finalBalance });
+        console.log(`Credits updated: Used ${creditsUsed}, New balance: ${finalBalance}`);
       }
     }
     

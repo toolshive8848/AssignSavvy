@@ -441,7 +441,7 @@
         if (result.success) {
           displayResearchResults(result.data);
           currentResearchId = result.data.researchId;
-          updateUserCredits(result.data.metadata.creditsUsed);
+          updateUserCredits(result.data.metadata.creditsUsed, result.data.metadata.newBalance);
         } else {
           throw new Error(result.error || 'Research failed');
         }
@@ -622,11 +622,16 @@
       alert(historyText);
     }
 
-    function updateUserCredits(creditsUsed) {
-      if (window.userSession && creditsUsed !== undefined) {
-        const currentUser = window.userSession.getCurrentUser();
-        const newBalance = Math.max(0, currentUser.credits - creditsUsed);
-        window.userSession.updateUser({ credits: newBalance });
+    function updateUserCredits(creditsUsed, newBalance) {
+      if (window.userSession) {
+        // Use server-provided balance if available, otherwise calculate locally
+        const finalBalance = newBalance !== undefined ? newBalance : (() => {
+          const currentUser = window.userSession.getCurrentUser();
+          return Math.max(0, currentUser.credits - (creditsUsed || 0));
+        })();
+        
+        window.userSession.updateUser({ credits: finalBalance });
+        console.log(`Credits updated: Used ${creditsUsed}, New balance: ${finalBalance}`);
       }
     }
 
