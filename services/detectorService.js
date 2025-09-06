@@ -35,14 +35,16 @@ class DetectorService {
    * Calculate detection credits needed
    */
   calculateDetectionCredits(wordCount) {
-    return this.atomicCredit.calculateRequiredCredits(wordCount, 'detector', 'detection');
+    // 50 credits per 1000 words for detection
+    return Math.ceil((wordCount / 1000) * 50);
   }
 
   /**
    * Calculate generation credits needed
    */
   calculateGenerationCredits(wordCount) {
-    return this.atomicCredit.calculateRequiredCredits(wordCount, 'detector', 'generation');
+    // 1 credit per 5 words for generation/removal
+    return Math.ceil(wordCount / 5);
   }
 
   /**

@@ -33,9 +33,9 @@ class AtomicCreditSystem {
         // Special handling for detector tool
         if (toolType === 'detector') {
             if (operation === 'detection') {
-                // 1 credit per 10 words for detection
-                const requiredCredits = Math.ceil(requestedAmount / this.CREDIT_RATIOS.detector);
-                console.log(`Credit calculation: ${requestedAmount} words = ${requiredCredits} credits (detector detection: 1 credit per 10 words)`);
+                // 50 credits per 1000 words for detection (1:20 ratio)
+                const requiredCredits = Math.ceil((requestedAmount / 1000) * 50);
+                console.log(`Credit calculation: ${requestedAmount} words = ${requiredCredits} credits (detector detection: 50 credits per 1000 words)`);
                 return requiredCredits;
             } else if (operation === 'generation') {
                 // 1 credit per 5 words for generation/removal
