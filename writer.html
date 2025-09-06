@@ -479,6 +479,219 @@
             </div>
           </div>
         </div>
+        
+        <!-- Canvas-Style Content Panel -->
+        <div class="lg:col-span-3" id="content-canvas" style="display: none;">
+          <div class="canvas-container">
+            <div class="canvas-header">
+              <div class="canvas-title">
+                <h3 id="canvas-content-title">Generated Content</h3>
+                <div class="canvas-meta">
+                  <span id="canvas-word-count">0 words</span>
+                  <span class="separator">•</span>
+                  <span id="canvas-quality-tier">Standard Quality</span>
+                  <span class="separator">•</span>
+                  <span id="canvas-generation-time">0s</span>
+                </div>
+              </div>
+              <div class="canvas-actions">
+                <button class="canvas-btn preview-btn active" id="preview-tab">
+                  <i class="fas fa-eye"></i>
+                  Preview
+                </button>
+                <button class="canvas-btn edit-btn" id="edit-tab">
+                  <i class="fas fa-edit"></i>
+                  Edit
+                </button>
+                <button class="canvas-btn citation-btn" id="citation-tab">
+                  <i class="fas fa-quote-right"></i>
+                  Citations
+                </button>
+                <button class="canvas-btn download-btn" id="download-tab">
+                  <i class="fas fa-download"></i>
+                  Download
+                </button>
+              </div>
+            </div>
+            
+            <div class="canvas-content">
+              <!-- Preview Panel -->
+              <div id="preview-panel" class="canvas-panel active">
+                <div class="preview-content" id="preview-content">
+                  <p class="text-gray text-center">Generated content will appear here...</p>
+                </div>
+              </div>
+              
+              <!-- Edit Panel -->
+              <div id="edit-panel" class="canvas-panel">
+                <div class="edit-toolbar">
+                  <button class="toolbar-btn" id="bold-btn" title="Bold">
+                    <i class="fas fa-bold"></i>
+                  </button>
+                  <button class="toolbar-btn" id="italic-btn" title="Italic">
+                    <i class="fas fa-italic"></i>
+                  </button>
+                  <button class="toolbar-btn" id="underline-btn" title="Underline">
+                    <i class="fas fa-underline"></i>
+                  </button>
+                  <div class="toolbar-separator"></div>
+                  <button class="toolbar-btn" id="undo-btn" title="Undo">
+                    <i class="fas fa-undo"></i>
+                  </button>
+                  <button class="toolbar-btn" id="redo-btn" title="Redo">
+                    <i class="fas fa-redo"></i>
+                  </button>
+                  <div class="toolbar-separator"></div>
+                  <button class="toolbar-btn" id="save-changes-btn" title="Save Changes">
+                    <i class="fas fa-save"></i>
+                    Save
+                  </button>
+                </div>
+                <textarea id="edit-content" class="edit-textarea" placeholder="Edit your content here..."></textarea>
+                <div class="edit-footer">
+                  <span id="edit-word-count">0 words</span>
+                  <span class="edit-status" id="edit-status">Ready to edit</span>
+                </div>
+              </div>
+              
+              <!-- Citation Panel -->
+              <div id="citation-panel" class="canvas-panel">
+                <div class="citation-header">
+                  <h4>Citations & Bibliography</h4>
+                  <div class="citation-style-selector">
+                    <label for="citation-style-select">Style:</label>
+                    <select id="citation-style-select" class="citation-select">
+                      <option value="APA">APA</option>
+                      <option value="MLA">MLA</option>
+                      <option value="Chicago">Chicago</option>
+                      <option value="Harvard">Harvard</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div class="citation-content">
+                  <div id="no-citations" class="citation-empty">
+                    <i class="fas fa-quote-right text-4xl text-gray mb-4"></i>
+                    <h4>No Citations Available</h4>
+                    <p class="text-gray">Citations will appear here if your content includes references</p>
+                    <button class="btn btn-outline" id="generate-citations-btn">
+                      <i class="fas fa-plus"></i>
+                      Generate Citations
+                    </button>
+                  </div>
+                  
+                  <div id="citations-list" style="display: none;">
+                    <div class="citation-section">
+                      <h5>In-Text Citations</h5>
+                      <div id="in-text-citations" class="citation-items"></div>
+                    </div>
+                    
+                    <div class="citation-section">
+                      <h5>Bibliography</h5>
+                      <div id="bibliography-citations" class="citation-items"></div>
+                    </div>
+                    
+                    <div class="citation-actions">
+                      <button class="btn btn-outline" id="copy-citations-btn">
+                        <i class="fas fa-copy"></i>
+                        Copy Citations
+                      </button>
+                      <button class="btn btn-outline" id="export-citations-btn">
+                        <i class="fas fa-download"></i>
+                        Export Citations
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Download Panel -->
+              <div id="download-panel" class="canvas-panel">
+                <div class="download-header">
+                  <h4>Download Options</h4>
+                  <p class="text-gray">Choose your preferred format and download your content</p>
+                </div>
+                
+                <div class="download-formats">
+                  <div class="format-option" data-format="docx">
+                    <div class="format-icon">
+                      <i class="fas fa-file-word"></i>
+                    </div>
+                    <div class="format-info">
+                      <h5>Microsoft Word (.docx)</h5>
+                      <p>Professional document format with formatting</p>
+                    </div>
+                    <button class="format-download-btn" data-format="docx">
+                      <i class="fas fa-download"></i>
+                    </button>
+                  </div>
+                  
+                  <div class="format-option" data-format="pdf">
+                    <div class="format-icon">
+                      <i class="fas fa-file-pdf"></i>
+                    </div>
+                    <div class="format-info">
+                      <h5>PDF Document (.pdf)</h5>
+                      <p>Portable document format, ready to print</p>
+                    </div>
+                    <button class="format-download-btn" data-format="pdf">
+                      <i class="fas fa-download"></i>
+                    </button>
+                  </div>
+                  
+                  <div class="format-option" data-format="txt">
+                    <div class="format-icon">
+                      <i class="fas fa-file-alt"></i>
+                    </div>
+                    <div class="format-info">
+                      <h5>Plain Text (.txt)</h5>
+                      <p>Simple text format, compatible everywhere</p>
+                    </div>
+                    <button class="format-download-btn" data-format="txt">
+                      <i class="fas fa-download"></i>
+                    </button>
+                  </div>
+                  
+                  <div class="format-option" data-format="html">
+                    <div class="format-icon">
+                      <i class="fas fa-code"></i>
+                    </div>
+                    <div class="format-info">
+                      <h5>HTML Document (.html)</h5>
+                      <p>Web format with styling and structure</p>
+                    </div>
+                    <button class="format-download-btn" data-format="html">
+                      <i class="fas fa-download"></i>
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="download-options">
+                  <div class="form-group">
+                    <label for="download-title">Document Title</label>
+                    <input type="text" id="download-title" class="form-input" placeholder="Enter document title...">
+                  </div>
+                  
+                  <div class="form-group">
+                    <label class="checkbox-container">
+                      <input type="checkbox" id="include-metadata" checked>
+                      <span class="checkmark"></span>
+                      Include generation metadata
+                    </label>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label class="checkbox-container">
+                      <input type="checkbox" id="include-citations">
+                      <span class="checkmark"></span>
+                      Include citations (if available)
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1047,6 +1260,444 @@
       .file-item {
         margin-bottom: 0.5rem;
       }
+      
+      /* Canvas-Style Content Panel */
+      .canvas-container {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        margin-top: 2rem;
+      }
+      
+      .canvas-header {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        border-bottom: 1px solid #e5e7eb;
+        padding: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+      
+      .canvas-title h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1f2937;
+      }
+      
+      .canvas-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        color: #6b7280;
+        margin-top: 0.25rem;
+      }
+      
+      .separator {
+        color: #d1d5db;
+      }
+      
+      .canvas-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+      
+      .canvas-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        border: 1px solid #d1d5db;
+        background: white;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #6b7280;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+      
+      .canvas-btn:hover {
+        background: #f9fafb;
+        border-color: #9ca3af;
+        color: #374151;
+      }
+      
+      .canvas-btn.active {
+        background: #3b82f6;
+        border-color: #3b82f6;
+        color: white;
+      }
+      
+      .canvas-content {
+        min-height: 500px;
+        position: relative;
+      }
+      
+      .canvas-panel {
+        display: none;
+        padding: 2rem;
+        min-height: 500px;
+      }
+      
+      .canvas-panel.active {
+        display: block;
+      }
+      
+      /* Preview Panel */
+      .preview-content {
+        line-height: 1.8;
+        font-size: 1rem;
+        color: #374151;
+        max-width: none;
+        font-family: 'Georgia', serif;
+      }
+      
+      .preview-content h1, .preview-content h2, .preview-content h3 {
+        color: #1f2937;
+        margin: 1.5rem 0 1rem 0;
+        font-weight: 600;
+      }
+      
+      .preview-content p {
+        margin-bottom: 1rem;
+        text-align: justify;
+      }
+      
+      /* Edit Panel */
+      .edit-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 1rem;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        margin: -2rem -2rem 1rem -2rem;
+        flex-wrap: wrap;
+      }
+      
+      .toolbar-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border: 1px solid #d1d5db;
+        background: white;
+        border-radius: 6px;
+        color: #6b7280;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+      
+      .toolbar-btn:hover {
+        background: #f3f4f6;
+        border-color: #9ca3af;
+        color: #374151;
+      }
+      
+      .toolbar-btn.active {
+        background: #3b82f6;
+        border-color: #3b82f6;
+        color: white;
+      }
+      
+      .toolbar-separator {
+        width: 1px;
+        height: 24px;
+        background: #d1d5db;
+        margin: 0 0.5rem;
+      }
+      
+      .edit-textarea {
+        width: 100%;
+        min-height: 400px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        padding: 1rem;
+        font-size: 1rem;
+        line-height: 1.6;
+        resize: vertical;
+        font-family: 'Georgia', serif;
+      }
+      
+      .edit-textarea:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+      
+      .edit-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 1rem;
+        font-size: 0.875rem;
+        color: #6b7280;
+      }
+      
+      .edit-status {
+        font-weight: 500;
+      }
+      
+      /* Citation Panel */
+      .citation-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+      
+      .citation-header h4 {
+        margin: 0;
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #1f2937;
+      }
+      
+      .citation-style-selector {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      
+      .citation-style-selector label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #374151;
+      }
+      
+      .citation-select {
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.875rem;
+      }
+      
+      .citation-empty {
+        text-align: center;
+        padding: 3rem 1rem;
+      }
+      
+      .citation-empty h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #374151;
+      }
+      
+      .citation-section {
+        margin-bottom: 2rem;
+      }
+      
+      .citation-section h5 {
+        margin: 0 0 1rem 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1f2937;
+        border-bottom: 1px solid #e5e7eb;
+        padding-bottom: 0.5rem;
+      }
+      
+      .citation-items {
+        space-y: 1rem;
+      }
+      
+      .citation-item {
+        padding: 1rem;
+        background: #f9fafb;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+        margin-bottom: 0.75rem;
+      }
+      
+      .citation-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        flex-wrap: wrap;
+      }
+      
+      /* Download Panel */
+      .download-header {
+        margin-bottom: 2rem;
+      }
+      
+      .download-header h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #1f2937;
+      }
+      
+      .download-formats {
+        display: grid;
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+      
+      .format-option {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.5rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        background: white;
+        transition: all 0.3s ease;
+        cursor: pointer;
+      }
+      
+      .format-option:hover {
+        border-color: #3b82f6;
+        background: #f8fafc;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+      
+      .format-icon {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-size: 1.5rem;
+      }
+      
+      .format-option[data-format="docx"] .format-icon {
+        background: #2563eb;
+        color: white;
+      }
+      
+      .format-option[data-format="pdf"] .format-icon {
+        background: #dc2626;
+        color: white;
+      }
+      
+      .format-option[data-format="txt"] .format-icon {
+        background: #6b7280;
+        color: white;
+      }
+      
+      .format-option[data-format="html"] .format-icon {
+        background: #ea580c;
+        color: white;
+      }
+      
+      .format-info {
+        flex: 1;
+      }
+      
+      .format-info h5 {
+        margin: 0 0 0.25rem 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #1f2937;
+      }
+      
+      .format-info p {
+        margin: 0;
+        font-size: 0.875rem;
+        color: #6b7280;
+      }
+      
+      .format-download-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border: 1px solid #d1d5db;
+        background: white;
+        border-radius: 8px;
+        color: #6b7280;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+      
+      .format-download-btn:hover {
+        background: #3b82f6;
+        border-color: #3b82f6;
+        color: white;
+        transform: scale(1.1);
+      }
+      
+      .download-options {
+        padding: 1.5rem;
+        background: #f9fafb;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+      }
+      
+      /* Responsive Design */
+      @media (max-width: 768px) {
+        .canvas-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 1rem;
+        }
+        
+        .canvas-actions {
+          width: 100%;
+          justify-content: space-between;
+        }
+        
+        .canvas-btn {
+          flex: 1;
+          justify-content: center;
+          padding: 0.75rem 0.5rem;
+          font-size: 0.8rem;
+        }
+        
+        .canvas-btn i {
+          display: none;
+        }
+        
+        .edit-toolbar {
+          margin: -2rem -1rem 1rem -1rem;
+          padding: 0.75rem;
+        }
+        
+        .canvas-panel {
+          padding: 1rem;
+        }
+        
+        .format-option {
+          padding: 1rem;
+        }
+        
+        .format-icon {
+          width: 40px;
+          height: 40px;
+          font-size: 1.25rem;
+        }
+      }
+      
+      /* Canvas-Style Content Panel */
+      .canvas-container {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+        margin-top: 2rem;
+      }
+      
+      .canvas-header {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        border-bottom: 1px solid #e5e7eb;
+        padding: 1.5rem;
+        display: flex;
+        justify-content: space-between;
     `;
     document.head.appendChild(style);
   </script>
