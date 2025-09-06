@@ -425,4 +425,59 @@ router.post('/validate', authenticateToken, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/detector/stats
+ * Get detector tool statistics for dashboard
+ */
+router.get('/stats', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { date } = req.query;
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    // Get today's detector statistics from Firestore
+    const today = new Date(targetDate);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const detectorQuery = await admin.firestore()
+      .collection('detectorResults')
+      .where('userId', '==', userId)
+      .where('createdAt', '>=', today)
+      .where('createdAt', '<', tomorrow)
+      .get();
+
+    let analysesToday = 0;
+    let totalOriginalityScore = 0;
+    let creditsToday = 0;
+
+    detectorQuery.docs.forEach(doc => {
+      const data = doc.data();
+      analysesToday++;
+      creditsToday += data.creditsUsed || 0;
+      
+      if (data.results && data.results.plagiarism && data.results.plagiarism.originalityScore) {
+        totalOriginalityScore += data.results.plagiarism.originalityScore;
+      }
+    });
+
+    const averageOriginalityScore = analysesToday > 0 ? totalOriginalityScore / analysesToday : null;
+
+    res.json({
+      success: true,
+      date: targetDate,
+      analysesToday,
+      averageOriginalityScore,
+      creditsToday
+    });
+
+  } catch (error) {
+    console.error('Error getting detector stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get detector statistics'
+    });
+  }
+});
+
 module.exports = router;

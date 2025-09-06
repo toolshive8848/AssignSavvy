@@ -626,6 +626,49 @@ router.post('/validate-files', upload.array('files', 5), (req, res) => {
 });
 
 /**
+ * GET /api/writer/stats
+ * Get writer tool statistics for dashboard
+ */
+router.get('/stats', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { date } = req.query;
+        const targetDate = date || new Date().toISOString().split('T')[0];
+        const db = req.app.locals.db;
+
+        // Get today's writer statistics
+        db.get(`
+            SELECT 
+                COUNT(*) as generations_today,
+                COALESCE(SUM(word_count), 0) as words_today,
+                COALESCE(SUM(credits_used), 0) as credits_today
+            FROM assignments 
+            WHERE user_id = ? AND DATE(created_at) = ?
+        `, [userId, targetDate], (err, stats) => {
+            if (err) {
+                console.error('Database error:', err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+
+            res.json({
+                success: true,
+                date: targetDate,
+                generationsToday: stats?.generations_today || 0,
+                wordsToday: stats?.words_today || 0,
+                creditsToday: stats?.credits_today || 0
+            });
+        });
+
+    } catch (error) {
+        console.error('Error getting writer stats:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get writer statistics'
+        });
+    }
+});
+
+/**
  * Error handling middleware for multer
  */
 router.use((error, req, res, next) => {

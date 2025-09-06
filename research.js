@@ -778,4 +778,54 @@ router.post('/generate-citations', authenticateToken, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/research/stats
+ * Get research tool statistics for dashboard
+ */
+router.get('/stats', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { date } = req.query;
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    // Get today's research statistics from Firestore
+    const today = new Date(targetDate);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const researchQuery = await admin.firestore()
+      .collection('research_history')
+      .where('userId', '==', userId)
+      .where('timestamp', '>=', today)
+      .where('timestamp', '<', tomorrow)
+      .get();
+
+    let researchesToday = 0;
+    let sourcesToday = 0;
+    let creditsToday = 0;
+
+    researchQuery.docs.forEach(doc => {
+      const data = doc.data();
+      researchesToday++;
+      sourcesToday += (data.sources || []).length;
+      creditsToday += data.creditsUsed || 0;
+    });
+
+    res.json({
+      success: true,
+      date: targetDate,
+      researchesToday,
+      sourcesToday,
+      creditsToday
+    });
+
+  } catch (error) {
+    console.error('Error getting research stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get research statistics'
+    });
+  }
+});
+
 module.exports = router;

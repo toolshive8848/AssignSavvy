@@ -262,4 +262,48 @@ router.post('/analyze-free', async (req, res) => {
     }
 });
 
+// Get prompt engineer statistics for dashboard
+router.get('/stats', verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const { date } = req.query;
+        const targetDate = date || new Date().toISOString().split('T')[0];
+
+        // Get today's prompt optimization statistics from Firestore
+        const today = new Date(targetDate);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const optimizationsQuery = await admin.firestore()
+            .collection('promptOptimizations')
+            .where('userId', '==', userId)
+            .where('timestamp', '>=', today)
+            .where('timestamp', '<', tomorrow)
+            .get();
+
+        let optimizedToday = 0;
+        let creditsToday = 0;
+
+        optimizationsQuery.docs.forEach(doc => {
+            const data = doc.data();
+            optimizedToday++;
+            creditsToday += data.creditsUsed || 0;
+        });
+
+        res.json({
+            success: true,
+            date: targetDate,
+            optimizedToday,
+            creditsToday
+        });
+
+    } catch (error) {
+        console.error('Error getting prompt engineer stats:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get prompt engineer statistics'
+        });
+    }
+});
+
 module.exports = router;
