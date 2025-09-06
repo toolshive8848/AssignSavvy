@@ -447,8 +447,8 @@ Begin your research now:
    * Calculate research credits based on depth and word count
    */
   calculateResearchCredits(wordCount, depth = 3) {
-    // Base rate: 1 credit per 5 words for research
-    const baseCredits = Math.ceil(wordCount / 5);
+    // Base rate: 1 credit per 10 words for research (1:10 ratio)
+    const baseCredits = Math.ceil(wordCount / 10);
     
     // Depth multiplier
     const depthMultipliers = {

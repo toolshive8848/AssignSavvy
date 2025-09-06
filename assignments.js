@@ -199,7 +199,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
             
             const creditDeductionResult = await atomicCreditSystem.deductCreditsAtomic(
                 req.user.id,
-                wordCount, // Pass requested word count directly
+                Math.ceil(wordCount / 3), // Calculate credits: 1 credit per 3 words
                 planValidation.userPlan.planType,
                 'writing'
             );

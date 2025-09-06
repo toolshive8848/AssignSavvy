@@ -56,16 +56,16 @@ class AtomicCreditSystem {
     /**
      * Atomic credit deduction with Firestore transaction
      * @param {string} userId - User ID
-     * @param {number} requestedAmount - Total words requested or credits for detector
+     * @param {number} creditsToDeduct - Credits to deduct
      * @param {string} planType - User's plan type
      * @param {string} toolType - Type of tool ('writing', 'research', or 'detector')
      * @returns {Promise<Object>} Transaction result
      */
-    async deductCreditsAtomic(userId, requestedAmount, planType, toolType = 'writing') {
-        const requiredCredits = this.calculateRequiredCredits(requestedAmount, toolType);
+    async deductCreditsAtomic(userId, creditsToDeduct, planType, toolType = 'writing') {
+        const requiredCredits = creditsToDeduct;
         
-        // For detector tool, requestedAmount is credits, so wordCount should be 0
-        const wordCount = toolType === 'detector' ? 0 : requestedAmount;
+        // Word count is 0 for credit-based deduction
+        const wordCount = 0;
         
         let attempt = 0;
         while (attempt < this.MAX_RETRY_ATTEMPTS) {
@@ -73,7 +73,7 @@ class AtomicCreditSystem {
                 const result = await this.executeTransaction(userId, requiredCredits, wordCount, planType);
                 console.log(`Atomic credit deduction successful for user ${userId}: -${requiredCredits} credits, +${wordCount} monthly words`);
                 result.toolType = toolType;
-                result.requestedAmount = requestedAmount;
+                result.creditsDeducted = creditsToDeduct;
                 return result;
             } catch (error) {
                 attempt++;

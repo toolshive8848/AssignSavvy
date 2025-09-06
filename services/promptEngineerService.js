@@ -30,8 +30,8 @@ class PromptEngineerService {
      * Calculate credits needed for input and output words
      */
     calculateCreditsNeeded(inputWords, outputWords) {
-        const inputCredits = Math.ceil(inputWords / this.CREDIT_RATIOS.input);
-        const outputCredits = Math.ceil(outputWords / this.CREDIT_RATIOS.output);
+        const inputCredits = Math.ceil(inputWords / 20);  // 1 credit per 20 input words
+        const outputCredits = Math.ceil(outputWords / 10); // 1 credit per 10 output words
         return inputCredits + outputCredits;
     }
 
