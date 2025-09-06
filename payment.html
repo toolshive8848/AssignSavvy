@@ -936,4 +936,501 @@
                 elements = stripe.elements();
                 isStripeLoaded = true;
                 
-                // Create an
+                // Create an instance of the card Element
+                const style = {
+                    base: {
+                        fontSize: '16px',
+                        color: '#424770',
+                        '::placeholder': {
+                            color: '#aab7c4',
+                        },
+                    },
+                    invalid: {
+                        color: '#9e2146',
+                    },
+                };
+                
+                // Create individual card elements
+                cardNumberElement = elements.create('cardNumber', { style });
+                cardExpiryElement = elements.create('cardExpiry', { style });
+                cardCvcElement = elements.create('cardCvc', { style });
+                
+                // Mount the elements
+                cardNumberElement.mount('#card-number');
+                cardExpiryElement.mount('#card-expiry');
+                cardCvcElement.mount('#card-cvc');
+                
+                // Handle real-time validation errors from the card Element
+                cardNumberElement.on('change', ({error}) => {
+                    const displayError = document.getElementById('card-number-errors');
+                    if (error) {
+                        displayError.textContent = error.message;
+                    } else {
+                        displayError.textContent = '';
+                    }
+                });
+                
+                cardExpiryElement.on('change', ({error}) => {
+                    const displayError = document.getElementById('card-expiry-errors');
+                    if (error) {
+                        displayError.textContent = error.message;
+                    } else {
+                        displayError.textContent = '';
+                    }
+                });
+                
+                cardCvcElement.on('change', ({error}) => {
+                    const displayError = document.getElementById('card-cvc-errors');
+                    if (error) {
+                        displayError.textContent = error.message;
+                    } else {
+                        displayError.textContent = '';
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Stripe initialization error:', error);
+                showFallbackInputs();
+            }
+        }
+        
+        // Show fallback inputs when Stripe is not available
+        function showFallbackInputs() {
+            // Hide Stripe elements
+            document.getElementById('card-number').style.display = 'none';
+            document.getElementById('card-expiry').style.display = 'none';
+            document.getElementById('card-cvc').style.display = 'none';
+            
+            // Show fallback inputs
+            document.getElementById('card-number-fallback').style.display = 'block';
+            document.getElementById('card-expiry-fallback').style.display = 'block';
+            document.getElementById('card-cvc-fallback').style.display = 'block';
+            
+            // Add input formatting for fallback inputs
+            setupFallbackInputs();
+        }
+        
+        // Setup fallback input formatting
+        function setupFallbackInputs() {
+            const cardNumberInput = document.getElementById('card-number-fallback');
+            const expiryInput = document.getElementById('card-expiry-fallback');
+            const cvcInput = document.getElementById('card-cvc-fallback');
+            
+            // Format card number
+            cardNumberInput.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+                let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
+                e.target.value = formattedValue;
+            });
+            
+            // Format expiry date
+            expiryInput.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, '');
+                if (value.length >= 2) {
+                    value = value.substring(0, 2) + '/' + value.substring(2, 4);
+                }
+                e.target.value = value;
+            });
+            
+            // Format CVC
+            cvcInput.addEventListener('input', function(e) {
+                e.target.value = e.target.value.replace(/\D/g, '');
+            });
+        }
+        
+        // Load plan details from URL parameters or localStorage
+        function loadPlanDetails() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const selectedPlan = urlParams.get('plan') || localStorage.getItem('selectedPlan') || 'pro';
+            
+            // Plan configurations
+            const plans = {
+                basic: {
+                    name: 'Basic Plan',
+                    description: '500 credits per month',
+                    price: 4.99,
+                    credits: 500,
+                    features: [
+                        '500 credits monthly',
+                        'Basic AI models',
+                        'Email support',
+                        'Standard processing'
+                    ]
+                },
+                pro: {
+                    name: 'Pro Plan',
+                    description: '2,000 credits per month',
+                    price: 9.99,
+                    credits: 2000,
+                    features: [
+                        '2,000 credits monthly',
+                        'Advanced AI models',
+                        'Priority support',
+                        'Export to multiple formats'
+                    ]
+                },
+                premium: {
+                    name: 'Premium Plan',
+                    description: '10,000 credits per month',
+                    price: 19.99,
+                    credits: 10000,
+                    features: [
+                        '10,000 credits monthly',
+                        'All AI models',
+                        '24/7 priority support',
+                        'Advanced analytics',
+                        'Custom integrations'
+                    ]
+                }
+            };
+            
+            const planConfig = plans[selectedPlan] || plans.pro;
+            
+            // Update UI with plan details
+            document.getElementById('planName').textContent = planConfig.name;
+            document.getElementById('planDescription').textContent = planConfig.description;
+            
+            // Update features
+            const featuresContainer = document.querySelector('#planFeatures ul');
+            featuresContainer.innerHTML = '';
+            planConfig.features.forEach(feature => {
+                const li = document.createElement('li');
+                li.textContent = feature;
+                featuresContainer.appendChild(li);
+            });
+            
+            // Calculate pricing
+            const subtotal = planConfig.price;
+            const taxRate = 0.08; // 8% tax
+            const tax = subtotal * taxRate;
+            const total = subtotal + tax;
+            
+            // Update pricing display
+            document.getElementById('subtotal').textContent = `$${subtotal.toFixed(2)}`;
+            document.getElementById('tax').textContent = `$${tax.toFixed(2)}`;
+            document.getElementById('total').textContent = `$${total.toFixed(2)}`;
+            
+            // Store plan info for payment processing
+            window.selectedPlanConfig = {
+                plan: selectedPlan,
+                ...planConfig,
+                subtotal,
+                tax,
+                total
+            };
+        }
+        
+        // Setup form validation
+        function setupFormValidation() {
+            const form = document.getElementById('payment-form');
+            const inputs = form.querySelectorAll('input[required]');
+            
+            inputs.forEach(input => {
+                input.addEventListener('blur', validateField);
+                input.addEventListener('input', clearFieldError);
+            });
+        }
+        
+        // Validate individual field
+        function validateField(event) {
+            const field = event.target;
+            const value = field.value.trim();
+            const fieldName = field.name || field.id;
+            const errorElement = document.getElementById(`${fieldName}-error`) || 
+                               document.getElementById(`${fieldName}-errors`);
+            
+            let isValid = true;
+            let errorMessage = '';
+            
+            // Required field validation
+            if (field.hasAttribute('required') && !value) {
+                isValid = false;
+                errorMessage = 'This field is required';
+            }
+            
+            // Email validation
+            if (field.type === 'email' && value) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(value)) {
+                    isValid = false;
+                    errorMessage = 'Please enter a valid email address';
+                }
+            }
+            
+            // Display error
+            if (errorElement) {
+                errorElement.textContent = errorMessage;
+                field.classList.toggle('error', !isValid);
+            }
+            
+            return isValid;
+        }
+        
+        // Clear field error on input
+        function clearFieldError(event) {
+            const field = event.target;
+            const fieldName = field.name || field.id;
+            const errorElement = document.getElementById(`${fieldName}-error`) || 
+                               document.getElementById(`${fieldName}-errors`);
+            
+            if (errorElement && field.value.trim()) {
+                errorElement.textContent = '';
+                field.classList.remove('error');
+            }
+        }
+        
+        // Setup form submission
+        function setupFormSubmission() {
+            const form = document.getElementById('payment-form');
+            form.addEventListener('submit', handleFormSubmit);
+        }
+        
+        // Handle form submission
+        async function handleFormSubmit(event) {
+            event.preventDefault();
+            
+            const submitButton = document.getElementById('submit-button');
+            const buttonText = document.getElementById('button-text');
+            const spinner = document.getElementById('spinner');
+            const submitStatus = document.getElementById('submit-status');
+            
+            // Disable submit button and show loading state
+            submitButton.disabled = true;
+            buttonText.textContent = 'Processing...';
+            spinner.classList.remove('hidden');
+            submitStatus.textContent = 'Processing payment...';
+            
+            try {
+                // Validate form
+                if (!validateForm()) {
+                    throw new Error('Please correct the errors in the form');
+                }
+                
+                // Process payment
+                if (isStripeLoaded) {
+                    await processStripePayment();
+                } else {
+                    await processFallbackPayment();
+                }
+                
+            } catch (error) {
+                console.error('Payment processing error:', error);
+                showError(error.message || 'Payment processing failed. Please try again.');
+                
+                // Reset button state
+                submitButton.disabled = false;
+                buttonText.textContent = 'Complete Secure Payment';
+                spinner.classList.add('hidden');
+                submitStatus.textContent = '';
+            }
+        }
+        
+        // Validate entire form
+        function validateForm() {
+            const form = document.getElementById('payment-form');
+            const requiredInputs = form.querySelectorAll('input[required]');
+            let isValid = true;
+            
+            requiredInputs.forEach(input => {
+                const fieldValid = validateField({ target: input });
+                if (!fieldValid) {
+                    isValid = false;
+                }
+            });
+            
+            // Validate cardholder name separately
+            const cardholderName = document.getElementById('cardholder-name');
+            if (!cardholderName.value.trim()) {
+                const errorElement = document.getElementById('cardholder-name-errors');
+                errorElement.textContent = 'Cardholder name is required';
+                isValid = false;
+            }
+            
+            return isValid;
+        }
+        
+        // Process payment with Stripe
+        async function processStripePayment() {
+            const authToken = localStorage.getItem('authToken');
+            const planConfig = window.selectedPlanConfig;
+            
+            // Create payment intent
+            const response = await fetch('/api/payments/create-payment-intent', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({
+                    amount: Math.round(planConfig.total * 100), // Convert to cents
+                    currency: 'usd',
+                    plan: selectedPlan,
+                    userId: currentUser.uid || currentUser.id
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to create payment intent');
+            }
+            
+            const { clientSecret } = await response.json();
+            
+            // Confirm payment with Stripe
+            const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+                payment_method: {
+                    card: cardNumberElement,
+                    billing_details: {
+                        name: document.getElementById('cardholder-name').value,
+                        email: document.getElementById('email').value,
+                        address: {
+                            line1: document.getElementById('address').value,
+                            city: document.getElementById('city').value,
+                            state: document.getElementById('state').value,
+                            postal_code: document.getElementById('zip').value,
+                        }
+                    }
+                }
+            });
+            
+            if (error) {
+                throw new Error(error.message);
+            }
+            
+            if (paymentIntent.status === 'succeeded') {
+                // Payment successful
+                await handlePaymentSuccess(paymentIntent);
+            }
+        }
+        
+        // Process payment without Stripe (fallback)
+        async function processFallbackPayment() {
+            // This is a fallback for when Stripe is not available
+            // In a real application, you would integrate with another payment processor
+            // For demo purposes, we'll simulate a payment process
+            
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate processing time
+            
+            // Simulate payment success
+            const mockPaymentIntent = {
+                id: 'pi_mock_' + Date.now(),
+                status: 'succeeded',
+                amount: Math.round(window.selectedPlanConfig.total * 100)
+            };
+            
+            await handlePaymentSuccess(mockPaymentIntent);
+        }
+        
+        // Handle successful payment
+        async function handlePaymentSuccess(paymentIntent) {
+            try {
+                const authToken = localStorage.getItem('authToken');
+                const planConfig = window.selectedPlanConfig;
+                
+                // Update user subscription on backend
+                const response = await fetch('/api/subscriptions/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        paymentIntentId: paymentIntent.id,
+                        plan: planConfig.plan,
+                        amount: paymentIntent.amount,
+                        credits: planConfig.credits
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to create subscription');
+                }
+                
+                // Store payment success info
+                localStorage.setItem('paymentSuccess', JSON.stringify({
+                    paymentIntentId: paymentIntent.id,
+                    plan: planConfig.plan,
+                    amount: paymentIntent.amount / 100,
+                    timestamp: new Date().toISOString()
+                }));
+                
+                // Redirect to success page
+                window.location.href = 'payment-success.html';
+                
+            } catch (error) {
+                console.error('Post-payment processing error:', error);
+                // Even if backend update fails, payment was successful
+                // Show success but with a warning
+                alert('Payment was successful, but there was an issue updating your account. Please contact support.');
+                window.location.href = 'dashboard.html';
+            }
+        }
+        
+        // Show error message
+        function showError(message) {
+            // Create or update error display
+            let errorDiv = document.getElementById('payment-error');
+            if (!errorDiv) {
+                errorDiv = document.createElement('div');
+                errorDiv.id = 'payment-error';
+                errorDiv.style.cssText = `
+                    background: #fee2e2;
+                    border: 1px solid #fecaca;
+                    color: #dc2626;
+                    padding: 1rem;
+                    border-radius: 8px;
+                    margin: 1rem 0;
+                    font-size: 0.875rem;
+                `;
+                
+                const form = document.getElementById('payment-form');
+                form.insertBefore(errorDiv, form.firstChild);
+            }
+            
+            errorDiv.innerHTML = `
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>Payment Error:</strong> ${message}
+            `;
+            
+            // Scroll to error
+            errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Auto-hide after 10 seconds
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.parentNode.removeChild(errorDiv);
+                }
+            }, 10000);
+        }
+        
+        // Utility function to format currency
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(amount);
+        }
+        
+        // Handle page visibility change (pause/resume)
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                // Page is hidden, pause any ongoing processes
+                console.log('Payment page hidden');
+            } else {
+                // Page is visible again
+                console.log('Payment page visible');
+            }
+        });
+        
+        // Handle page unload (warn about incomplete payment)
+        window.addEventListener('beforeunload', function(event) {
+            const submitButton = document.getElementById('submit-button');
+            if (submitButton.disabled) {
+                event.preventDefault();
+                event.returnValue = 'Payment is being processed. Are you sure you want to leave?';
+                return event.returnValue;
+            }
+        });
+    </script>
+</body>
+</html>

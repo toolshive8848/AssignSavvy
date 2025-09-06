@@ -60,7 +60,52 @@ class UserSessionManager {
                 throw new Error('No authentication token');
             }
             
-            const response = await fetch('/api/users/profile', {
+            // Check if backend is available
+            let response;
+            try {
+                response = await fetch('/api/users/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+            } catch (fetchError) {
+                console.warn('Backend not available, using cached user data');
+                return this.currentUser;
+            }
+            
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                console.warn('Backend returned non-JSON response, using cached data');
+                return this.currentUser;
+            }
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch user data');
+            }
+            
+            const userData = await response.json();
+            
+            // Update local storage and current user
+            localStorage.setItem('userData', JSON.stringify(userData));
+            this.currentUser = userData;
+            this.isAuthenticated = true;
+            
+            return userData;
+        } catch (error) {
+            console.error('Failed to fetch user data:', error);
+            
+            // Don't logout on fetch failure, use cached data
+            if (this.currentUser) {
+                console.warn('Using cached user data due to backend unavailability');
+                return this.currentUser;
+            }
+            
+            this.logout();
+            throw error;
+        }
+    }
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
