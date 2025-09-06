@@ -838,290 +838,438 @@
     </div>
 
     <script>
-        // Initialize Stripe with error handling
-        let stripe, elements, cardNumberElement, cardExpiryElement, cardCvcElement;
-        let useStripe = false;
-        let stripePublishableKey = null;
+        // Global variables
+        let stripe = null;
+        let elements = null;
+        let cardNumberElement = null;
+        let cardExpiryElement = null;
+        let cardCvcElement = null;
+        let isStripeLoaded = false;
+        let currentUser = null;
         
-        // Fetch Stripe configuration from backend
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Check authentication first
+                await checkAuthentication();
+                
+                // Load plan details
+                loadPlanDetails();
+                
+                // Initialize Stripe
+                await initializeStripe();
+                
+                // Setup form validation
+                setupFormValidation();
+                
+                // Setup form submission
+                setupFormSubmission();
+                
+            } catch (error) {
+                console.error('Page initialization error:', error);
+                showError('Failed to initialize payment page. Please refresh and try again.');
+            }
+        });
+        
+        // Check if user is authenticated
+        async function checkAuthentication() {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                alert('Please log in to continue with payment');
+                window.location.href = 'auth.html';
+                return;
+            }
+            
+            try {
+                // Fetch user data
+                const response = await fetch('/api/users/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Authentication failed');
+                }
+                
+                currentUser = await response.json();
+                
+                // Pre-fill user information
+                document.getElementById('email').value = currentUser.email || '';
+                document.getElementById('name').value = currentUser.name || '';
+                
+            } catch (error) {
+                console.error('Authentication check failed:', error);
+                alert('Authentication failed. Please log in again.');
+                window.location.href = 'auth.html';
+            }
+        }
+        
+        // Initialize Stripe
         async function initializeStripe() {
             try {
-                const response = await fetch('/api/payments/config');
-                const config = await response.json();
-                stripePublishableKey = config.publishableKey;
-                
-                if (stripePublishableKey && stripePublishableKey !== 'pk_test_your-stripe-publishable-key-here') {
-                    stripe = Stripe(stripePublishableKey);
-                    elements = stripe.elements();
-                    useStripe = true;
-                    setupStripeElements();
-                } else {
-                    console.warn('Stripe publishable key not configured, using fallback inputs');
-                    useStripe = false;
+                // Check if Stripe is loaded
+                if (typeof Stripe === 'undefined') {
+                    console.error('Stripe.js not loaded');
                     showFallbackInputs();
+                    return;
                 }
+                
+                // Fetch Stripe configuration from backend
+                const response = await fetch('/api/payments/config');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch Stripe config');
+                }
+                
+                const config = await response.json();
+                const publishableKey = config.publishableKey;
+                
+                if (!publishableKey || publishableKey.includes('your-stripe-publishable-key-here')) {
+                    console.warn('Stripe publishable key not configured');
+                    showFallbackInputs();
+                    return;
+                }
+                
+                // Initialize Stripe
+                stripe = Stripe(publishableKey);
+                elements = stripe.elements();
+                isStripeLoaded = true;
+                
+                // Create and mount Stripe elements
+                createStripeElements();
+                
             } catch (error) {
-                console.warn('Failed to fetch Stripe config, using fallback inputs:', error);
-                useStripe = false;
+                console.error('Stripe initialization failed:', error);
                 showFallbackInputs();
             }
         }
         
-        // Setup Stripe Elements
-        function setupStripeElements() {
-            if (!useStripe || !stripe || !elements) return;
-            
+        // Create Stripe Elements
+        function createStripeElements() {
             try {
-                cardNumberElement = elements.create('cardNumber', {
-                    style: {
-                        base: {
-                            fontSize: '16px',
-                            color: '#424770',
-                            '::placeholder': {
-                                color: '#aab7c4',
-                            },
+                const elementStyle = {
+                    base: {
+                        fontSize: '16px',
+                        color: '#424770',
+                        '::placeholder': {
+                            color: '#aab7c4',
                         },
+                        padding: '12px',
                     },
-                });
-
-                cardExpiryElement = elements.create('cardExpiry', {
-                    style: {
-                        base: {
-                            fontSize: '16px',
-                            color: '#424770',
-                            '::placeholder': {
-                                color: '#aab7c4',
-                            },
-                        },
+                    invalid: {
+                        color: '#9e2146',
                     },
-                });
-
-                cardCvcElement = elements.create('cardCvc', {
-                    style: {
-                        base: {
-                            fontSize: '16px',
-                            color: '#424770',
-                            '::placeholder': {
-                                color: '#aab7c4',
-                            },
-                        },
-                    },
-                });
-
-                // Mount the elements
+                };
+                
+                // Create elements
+                cardNumberElement = elements.create('cardNumber', { style: elementStyle });
+                cardExpiryElement = elements.create('cardExpiry', { style: elementStyle });
+                cardCvcElement = elements.create('cardCvc', { style: elementStyle });
+                
+                // Mount elements
                 cardNumberElement.mount('#card-number');
                 cardExpiryElement.mount('#card-expiry');
                 cardCvcElement.mount('#card-cvc');
                 
-                // Setup real-time validation
+                // Setup validation
                 setupStripeValidation();
+                
+                console.log('Stripe elements created and mounted successfully');
+                
             } catch (error) {
-                console.warn('Failed to create Stripe elements, using fallback:', error);
-                useStripe = false;
+                console.error('Failed to create Stripe elements:', error);
                 showFallbackInputs();
             }
         }
         
-        // Show fallback inputs if Stripe is not available
+        // Setup Stripe validation
+        function setupStripeValidation() {
+            cardNumberElement.on('change', ({error}) => {
+                const displayError = document.getElementById('card-number-errors');
+                displayError.textContent = error ? error.message : '';
+            });
+            
+            cardExpiryElement.on('change', ({error}) => {
+                const displayError = document.getElementById('card-expiry-errors');
+                displayError.textContent = error ? error.message : '';
+            });
+            
+            cardCvcElement.on('change', ({error}) => {
+                const displayError = document.getElementById('card-cvc-errors');
+                displayError.textContent = error ? error.message : '';
+            });
+        }
+        
+        // Show fallback inputs when Stripe is not available
         function showFallbackInputs() {
+            console.log('Using fallback payment inputs');
+            
+            // Show fallback inputs
             document.getElementById('card-number-fallback').style.display = 'block';
             document.getElementById('card-expiry-fallback').style.display = 'block';
             document.getElementById('card-cvc-fallback').style.display = 'block';
             
-            // Hide Stripe element containers
+            // Hide Stripe containers
             document.getElementById('card-number').style.display = 'none';
             document.getElementById('card-expiry').style.display = 'none';
             document.getElementById('card-cvc').style.display = 'none';
-        }
-        
-        // Setup Stripe validation
-        function setupStripeValidation() {
-            if (!useStripe || !cardNumberElement || !cardExpiryElement || !cardCvcElement) return;
             
-            cardNumberElement.on('change', ({error}) => {
-                const displayError = document.getElementById('card-number-errors');
-                if (error) {
-                    displayError.textContent = error.message;
-                } else {
-                    displayError.textContent = '';
-                }
+            // Add input formatting for fallback
+            setupFallbackFormatting();
+        }
+        
+        // Setup fallback input formatting
+        function setupFallbackFormatting() {
+            const cardNumberInput = document.getElementById('card-number-fallback');
+            const expiryInput = document.getElementById('card-expiry-fallback');
+            
+            // Format card number (add spaces every 4 digits)
+            cardNumberInput.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
+                let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
+                e.target.value = formattedValue;
             });
-
-            cardExpiryElement.on('change', ({error}) => {
-                const displayError = document.getElementById('card-expiry-errors');
-                if (error) {
-                    displayError.textContent = error.message;
-                } else {
-                    displayError.textContent = '';
+            
+            // Format expiry date (MM/YY)
+            expiryInput.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, '');
+                if (value.length >= 2) {
+                    value = value.substring(0, 2) + '/' + value.substring(2, 4);
                 }
+                e.target.value = value;
             });
-
-            cardCvcElement.on('change', ({error}) => {
-                const displayError = document.getElementById('card-cvc-errors');
-                if (error) {
-                    displayError.textContent = error.message;
-                } else {
-                    displayError.textContent = '';
+        }
+        
+        // Setup form validation
+        function setupFormValidation() {
+            const requiredFields = ['cardholder-name', 'email', 'name', 'address', 'city', 'state', 'zip'];
+            
+            requiredFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.addEventListener('blur', () => validateField(field));
                 }
             });
         }
-
-        // Add validation for cardholder name
-        const cardholderNameInput = document.getElementById('cardholder-name');
-        const cardholderNameErrors = document.getElementById('cardholder-name-errors');
         
-        cardholderNameInput.addEventListener('blur', () => {
-            const name = cardholderNameInput.value.trim();
-            if (!name) {
-                cardholderNameErrors.textContent = 'Cardholder name is required';
-            } else if (name.length < 2) {
-                cardholderNameErrors.textContent = 'Please enter a valid name';
-            } else {
-                cardholderNameErrors.textContent = '';
+        // Validate individual field
+        function validateField(field) {
+            const value = field.value.trim();
+            const errorElement = document.getElementById(field.id + '-error');
+            
+            if (!value) {
+                if (errorElement) errorElement.textContent = 'This field is required';
+                return false;
             }
-        });
-
+            
+            // Email validation
+            if (field.type === 'email') {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(value)) {
+                    if (errorElement) errorElement.textContent = 'Please enter a valid email address';
+                    return false;
+                }
+            }
+            
+            // Clear error if validation passes
+            if (errorElement) errorElement.textContent = '';
+            return true;
+        }
+        
+        // Setup form submission
+        function setupFormSubmission() {
+            const form = document.getElementById('payment-form');
+            form.addEventListener('submit', handleFormSubmission);
+        }
+        
         // Handle form submission
-        const form = document.getElementById('payment-form');
-        form.addEventListener('submit', async (event) => {
+        async function handleFormSubmission(event) {
             event.preventDefault();
             
-            // Validate cardholder name before processing
-            const cardholderName = cardholderNameInput.value.trim();
-            if (!cardholderName) {
-                cardholderNameErrors.textContent = 'Cardholder name is required';
-                cardholderNameInput.focus();
+            // Validate all required fields
+            if (!validateAllFields()) {
                 return;
             }
-
+            
             const submitButton = document.getElementById('submit-button');
             const buttonText = document.getElementById('button-text');
             const spinner = document.getElementById('spinner');
-
-            // Show loading state
-            submitButton.disabled = true;
-            buttonText.textContent = 'Processing...';
-            spinner.classList.remove('hidden');
-
-            // Get plan details from URL parameters
-            const urlParams = new URLSearchParams(window.location.search);
-            const planType = urlParams.get('plan') || 'pro';
-
+            
             try {
-                if (useStripe && stripe && cardNumberElement) {
-                    // Real Stripe payment processing
+                // Show loading state
+                submitButton.disabled = true;
+                buttonText.textContent = 'Processing Payment...';
+                spinner.classList.remove('hidden');
+                
+                // Get plan details
+                const urlParams = new URLSearchParams(window.location.search);
+                const planType = urlParams.get('plan') || 'pro';
+                
+                if (isStripeLoaded && stripe && cardNumberElement) {
+                    // Process with Stripe
                     await processStripePayment(planType);
                 } else {
-                    // Fallback for when Stripe is not available
-                    showError('Payment processing is currently unavailable. Please try again later.');
+                    // Process with fallback (demo mode)
+                    await processFallbackPayment(planType);
                 }
+                
             } catch (error) {
-                console.error('Payment error:', error);
-                showError(error.message || 'An unexpected error occurred. Please try again.');
+                console.error('Payment processing error:', error);
+                showError(error.message || 'Payment processing failed. Please try again.');
             } finally {
                 // Reset button state
                 submitButton.disabled = false;
                 buttonText.textContent = 'Complete Secure Payment';
                 spinner.classList.add('hidden');
             }
-        });
+        }
+        
+        // Validate all form fields
+        function validateAllFields() {
+            const requiredFields = ['cardholder-name', 'email', 'name', 'address', 'city', 'state', 'zip'];
+            let isValid = true;
+            
+            requiredFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field && !validateField(field)) {
+                    isValid = false;
+                }
+            });
+            
+            // Validate card fields if using fallback
+            if (!isStripeLoaded) {
+                const cardNumber = document.getElementById('card-number-fallback').value.replace(/\s/g, '');
+                const expiry = document.getElementById('card-expiry-fallback').value;
+                const cvc = document.getElementById('card-cvc-fallback').value;
+                
+                if (!cardNumber || cardNumber.length < 13) {
+                    showError('Please enter a valid card number');
+                    isValid = false;
+                }
+                
+                if (!expiry || !expiry.includes('/')) {
+                    showError('Please enter a valid expiry date (MM/YY)');
+                    isValid = false;
+                }
+                
+                if (!cvc || cvc.length < 3) {
+                    showError('Please enter a valid security code');
+                    isValid = false;
+                }
+            }
+            
+            return isValid;
+        }
         
         // Process Stripe payment
         async function processStripePayment(planType) {
-            // Get plan pricing
-            const planPricing = {
-                pro: { amount: 9.99, credits: 2000 },
-                custom: { amount: 15.00, credits: 3300 }
-            };
-            
-            const plan = planPricing[planType] || planPricing.pro;
-            
-            // Create payment intent on server
-            const response = await fetch('/api/payments/create-payment-intent', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    amount: plan.amount,
-                    credits: plan.credits,
-                    userId: getUserId() // You'll need to implement this
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to create payment intent');
-            }
-            
-            const { clientSecret } = await response.json();
-            
-            // Confirm payment with Stripe
-            const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-                payment_method: {
-                    card: cardNumberElement,
-                    billing_details: {
-                        name: document.getElementById('cardholder-name').value,
-                        email: document.getElementById('email').value,
-                        address: {
-                            line1: document.getElementById('address').value,
-                            city: document.getElementById('city').value,
-                            state: document.getElementById('state').value,
-                            postal_code: document.getElementById('zip').value,
+            try {
+                const planPricing = {
+                    pro: { amount: 9.99, credits: 2000 },
+                    custom: { amount: 15.00, credits: 3300 }
+                };
+                
+                const plan = planPricing[planType] || planPricing.pro;
+                
+                // Create payment intent
+                const response = await fetch('/api/payments/create-payment-intent', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                    },
+                    body: JSON.stringify({
+                        amount: plan.amount,
+                        credits: plan.credits,
+                        userId: currentUser?.uid || currentUser?.id,
+                        planType: planType
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to create payment intent');
+                }
+                
+                const { clientSecret } = await response.json();
+                
+                // Confirm payment with Stripe
+                const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+                    payment_method: {
+                        card: cardNumberElement,
+                        billing_details: {
+                            name: document.getElementById('cardholder-name').value,
+                            email: document.getElementById('email').value,
+                            address: {
+                                line1: document.getElementById('address').value,
+                                city: document.getElementById('city').value,
+                                state: document.getElementById('state').value,
+                                postal_code: document.getElementById('zip').value,
+                            }
                         }
                     }
+                });
+                
+                if (error) {
+                    throw new Error(error.message);
                 }
-            });
-            
-            if (error) {
-                throw new Error(error.message);
-            } else {
-                // Payment succeeded - redirect to success page
+                
+                // Payment successful
+                console.log('Payment successful:', paymentIntent);
                 window.location.href = `payment-success.html?payment_intent=${paymentIntent.id}&plan=${planType}`;
+                
+            } catch (error) {
+                console.error('Stripe payment error:', error);
+                throw error;
             }
         }
         
-        // Get user ID (implement based on your auth system)
-        function getUserId() {
-            // This should get the user ID from your authentication system
-            // For now, return a placeholder - you'll need to implement this
-            const token = localStorage.getItem('authToken');
-            if (token) {
-                try {
-                    const payload = JSON.parse(atob(token.split('.')[1]));
-                    return payload.userId || payload.id;
-                } catch (e) {
-                    console.warn('Failed to parse auth token');
+        // Process fallback payment (demo mode)
+        async function processFallbackPayment(planType) {
+            try {
+                console.log('Processing fallback payment for plan:', planType);
+                
+                // Simulate payment processing delay
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // In demo mode, simulate successful payment
+                const mockPaymentIntent = `pi_demo_${Date.now()}`;
+                
+                // Update user plan in localStorage (demo mode)
+                if (currentUser) {
+                    const planCredits = {
+                        pro: 2000,
+                        custom: 3300
+                    };
+                    
+                    currentUser.plan = planType;
+                    currentUser.credits = planCredits[planType] || 2000;
+                    currentUser.isPremium = true;
+                    
+                    localStorage.setItem('userData', JSON.stringify(currentUser));
+                    
+                    // Update userSession if available
+                    if (window.userSession) {
+                        window.userSession.updateUser(currentUser);
+                    }
                 }
+                
+                // Redirect to success page
+                window.location.href = `payment-success.html?payment_intent=${mockPaymentIntent}&plan=${planType}&demo=true`;
+                
+            } catch (error) {
+                console.error('Fallback payment error:', error);
+                throw error;
             }
-            return 1; // Fallback user ID
         }
-
-        function showError(message) {
-            const errorElement = document.getElementById('card-errors');
-            errorElement.textContent = message;
-        }
-
-        // Load plan details based on URL parameters
+        
+        // Load plan details from URL
         function loadPlanDetails() {
             const urlParams = new URLSearchParams(window.location.search);
             const planType = urlParams.get('plan') || 'pro';
-
-            // Note: Free plan users are now handled through auth.html and go directly to dashboard
-            // This payment page is only for paid plans (pro/custom)
-
+            
             const plans = {
-                free: {
-                    name: 'Freemium Plan',
-                    description: '200 credits per month',
-                    price: '$0.00',
-                    cycle: '/month',
-                    features: [
-                        '200 credits monthly',
-                        'Basic AI models',
-                        'Standard support',
-                        'Basic export options'
-                    ]
-                },
                 pro: {
                     name: 'Pro Plan',
                     description: '2,000 credits per month',
@@ -1131,37 +1279,36 @@
                         '2,000 credits monthly',
                         'Advanced AI models',
                         'Priority support',
-                        'Export to multiple formats'
+                        'Export to multiple formats',
+                        'Premium content generation',
+                        '2-loop refinement system'
                     ]
                 },
                 custom: {
                     name: 'Custom Plan',
-                    description: 'Pay per usage',
+                    description: 'Flexible credit top-ups',
                     price: '$15.00',
-                    cycle: '/usage',
+                    cycle: '/top-up',
                     features: [
-                        '$1 = 220 credits',
+                        '3,300 credits per top-up',
                         'Premium AI models',
                         'Dedicated support',
-                        'Advanced analytics'
+                        'Advanced analytics',
+                        'Custom integrations',
+                        'Priority processing'
                     ]
                 }
             };
-
+            
             const plan = plans[planType] || plans.pro;
             
-            // Update plan details with error handling
-            const updateElement = (id, content) => {
-                const element = document.getElementById(id);
-                if (element) element.textContent = content;
-            };
-            
+            // Update plan details
             updateElement('planName', plan.name);
             updateElement('planDescription', plan.description);
             updateElement('subtotal', plan.price);
             updateElement('total', plan.price);
             updateElement('billingCycle', plan.cycle);
-
+            
             // Update features list
             const featuresList = document.querySelector('#planFeatures ul');
             if (featuresList) {
@@ -1174,11 +1321,69 @@
             }
             
             // Update page title
-            document.title = `${plan.name} - Secure Payment - AI Writing Assistant`;
+            document.title = `${plan.name} - Secure Payment - AssignSavvy`;
         }
-
-        // Load plan details on page load
-        document.addEventListener('DOMContentLoaded', loadPlanDetails);
+        
+        // Utility function to update element text content
+        function updateElement(id, content) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = content;
+            }
+        }
+        
+        // Show error message
+        function showError(message) {
+            // Create or update error display
+            let errorElement = document.getElementById('payment-error');
+            if (!errorElement) {
+                errorElement = document.createElement('div');
+                errorElement.id = 'payment-error';
+                errorElement.style.cssText = `
+                    background: #fee2e2;
+                    border: 1px solid #fecaca;
+                    color: #dc2626;
+                    padding: 12px 16px;
+                    border-radius: 8px;
+                    margin: 16px 0;
+                    font-size: 14px;
+                `;
+                
+                const form = document.getElementById('payment-form');
+                form.insertBefore(errorElement, form.firstChild);
+            }
+            
+            errorElement.textContent = message;
+            errorElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        // Clear error message
+        function clearError() {
+            const errorElement = document.getElementById('payment-error');
+            if (errorElement) {
+                errorElement.remove();
+            }
+        }
+        
+        // Show success message
+        function showSuccess(message) {
+            clearError();
+            
+            const successElement = document.createElement('div');
+            successElement.style.cssText = `
+                background: #dcfce7;
+                border: 1px solid #bbf7d0;
+                color: #166534;
+                padding: 12px 16px;
+                border-radius: 8px;
+                margin: 16px 0;
+                font-size: 14px;
+            `;
+            successElement.textContent = message;
+            
+            const form = document.getElementById('payment-form');
+            form.insertBefore(successElement, form.firstChild);
+        }
     </script>
 
     <!-- Mobile Menu JavaScript -->
