@@ -120,7 +120,7 @@
           <div class="form-group mb-4">
             <label for="original-prompt">Original Prompt</label>
             <textarea id="original-prompt" class="form-input" rows="10" placeholder="Enter your prompt here..."></textarea>
-            <div class="text-right text-sm text-gray mt-1">0/15000 characters</div>
+            <div class="text-right text-sm text-gray mt-1">0 words | 0/10000 characters</div>
           </div>
           
           <!-- Quick Templates -->
@@ -146,15 +146,15 @@
             <div class="flex justify-between items-center mb-4">
               <h3>Optimized Prompt</h3>
               <div class="flex gap-2">
-                <button class="btn btn-icon">
+                <button class="btn btn-icon" onclick="copyOptimizedPrompt()">
                   <i class="fas fa-copy"></i>
                 </button>
-                <button class="btn btn-icon">
+                <button class="btn btn-icon" onclick="downloadOptimizedPrompt()">
                   <i class="fas fa-download"></i>
                 </button>
               </div>
             </div>
-            <textarea class="form-input" rows="8" readonly>Write a comprehensive analysis of renewable energy adoption trends in developing countries over the past decade. Include statistical data on growth rates, challenges faced in implementation, successful case studies, and policy recommendations for accelerating adoption. Structure the response with clear headings, bullet points for key statistics, and conclude with the most promising areas for future growth.</textarea>
+            <textarea id="optimized-prompt-output" class="form-input" rows="8" readonly placeholder="Your optimized prompt will appear here after optimization..."></textarea>
           </div>
           
           <!-- Optimization Tips -->
@@ -1030,7 +1030,7 @@
       originalPrompt.addEventListener('input', function() {
         const currentLength = this.value.length;
         const wordCount = this.value.trim().split(/\s+/).filter(word => word.length > 0).length;
-        charCounter.textContent = `${wordCount} words | ${currentLength}/15000 characters`;
+        charCounter.textContent = `${wordCount} words | ${currentLength}/10000 characters`;
         
         // Validate word count limits
         validateWordCount(wordCount);
@@ -1095,32 +1095,11 @@
       // Optimize button functionality
       const optimizeBtn = document.querySelector('.btn-primary');
       if (optimizeBtn) {
-        optimizeBtn.addEventListener('click', optimizePrompt);
+        optimizeBtn.addEventListener('click', function() {
+          optimizePrompt();
+        });
       }
     });
-    
-    // Free prompt analysis (no authentication required)
-    async function analyzeFreePrompt(prompt) {
-      try {
-        const response = await fetch('/api/prompt/analyze-free', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ prompt })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          updateQualityMetrics(data.analysis);
-        } else {
-          console.error('Analysis failed:', data.error);
-        }
-      } catch (error) {
-        console.error('Error analyzing prompt:', error);
-      }
-    }
     
     // Optimize prompt with authentication
     async function optimizePrompt() {
@@ -1130,6 +1109,13 @@
       const prompt = promptTextarea?.value?.trim();
       if (!prompt) {
         alert('Please enter a prompt to optimize');
+        return;
+      }
+      
+      // Validate word count
+      const wordCount = prompt.trim().split(/\s+/).filter(word => word.length > 0).length;
+      if (wordCount > 1000) {
+        alert('Prompt exceeds maximum length of 1000 words. Please reduce your input.');
         return;
       }
       
@@ -1172,6 +1158,29 @@
       }
     }
     
+    // Free prompt analysis (no authentication required)
+    async function analyzeFreePrompt(prompt) {
+      try {
+        const response = await fetch('/api/prompt/analyze-free', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ prompt })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          updateQualityMetrics(data.analysis);
+        } else {
+          console.error('Analysis failed:', data.error);
+        }
+      } catch (error) {
+        console.error('Error analyzing prompt:', error);
+      }
+    }
+    
     // Load prompt history
     async function loadPromptHistory() {
       try {
@@ -1191,11 +1200,13 @@
     
     // Update quality metrics display
     function updateQualityMetrics(analysis) {
+      if (!analysis) return;
+      
       const metrics = {
-        'Clarity': analysis.clarity || { score: 70 },
-        'Specificity': analysis.specificity || { score: 55 },
-        'Context': analysis.context || { score: 40 },
-        'Overall Score': analysis.overall || { score: 55 }
+        'Clarity': analysis.clarity || { score: 0 },
+        'Specificity': analysis.specificity || { score: 0 },
+        'Context': analysis.context || { score: 0 },
+        'Overall Score': analysis.overall || { score: 0 }
       };
       
       Object.keys(metrics).forEach(metricName => {
@@ -1212,11 +1223,11 @@
               
               // Update color based on score
               if (score >= 80) {
-                progressBar.style.backgroundColor = '#27ae60';
+                progressBar.className = 'progress-fill bg-success';
               } else if (score >= 60) {
-                progressBar.style.backgroundColor = '#f39c12';
+                progressBar.className = 'progress-fill bg-warning';
               } else {
-                progressBar.style.backgroundColor = '#e74c3c';
+                progressBar.className = 'progress-fill bg-danger';
               }
             }
           }
@@ -1226,7 +1237,7 @@
     
     // Display optimized prompt
     function displayOptimizedPrompt(data) {
-      const outputArea = document.querySelector('.card:last-child textarea');
+      const outputArea = document.getElementById('optimized-prompt-output');
       if (outputArea) {
         outputArea.value = data.optimizedPrompt;
       }
@@ -1242,8 +1253,28 @@
           message += `\n\nExplanation: ${data.explanation}`;
         }
         
-        alert(message);
+        showOptimizationResults(data);
       }
+    }
+    
+    // Show optimization results in a better format
+    function showOptimizationResults(data) {
+      const improvementsText = data.improvements ? data.improvements.join('\n• ') : 'General optimization applied';
+      let message = `✅ Optimization Complete!\n\n`;
+      message += `💰 Credits used: ${data.creditsUsed}\n`;
+      message += `📝 Input words: ${data.inputWords || 0}\n`;
+      message += `📄 Output words: ${data.outputWords || 0}\n\n`;
+      message += `🔧 Improvements made:\n• ${improvementsText}`;
+      
+      if (data.explanation) {
+        message += `\n\n💡 Explanation: ${data.explanation}`;
+      }
+      
+      if (data.categoryTips) {
+        message += `\n\n📚 Category Tips: ${data.categoryTips}`;
+      }
+      
+      alert(message);
     }
     
     // Display prompt history
@@ -1254,11 +1285,12 @@
         
         if (history.optimizations && history.optimizations.length > 0) {
           history.optimizations.forEach(opt => {
+            const date = opt.timestamp?.toDate ? opt.timestamp.toDate() : new Date(opt.timestamp);
             content += `
               <li class="project-item">
                 <div>
                   <h4>${opt.category || 'General'} Optimization</h4>
-                  <p class="text-sm text-gray">${new Date(opt.timestamp?.toDate()).toLocaleDateString()} • ${opt.category || 'General'}</p>
+                  <p class="text-sm text-gray">${date.toLocaleDateString()} • ${opt.inputWords || 0} words → ${opt.outputWords || 0} words</p>
                 </div>
                 <button class="btn btn-outline" onclick="loadHistoryItem('${opt.id}')">Open</button>
               </li>
@@ -1301,10 +1333,33 @@
     // Utility functions
     function copyToClipboard(text) {
       navigator.clipboard.writeText(text).then(() => {
-        alert('Copied to clipboard!');
+        showNotification('Copied to clipboard!');
       }).catch(err => {
         console.error('Failed to copy:', err);
+        alert('Failed to copy to clipboard');
       });
+    }
+    
+    function showNotification(message) {
+      const notification = document.createElement('div');
+      notification.className = 'notification';
+      notification.textContent = message;
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #10b981;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        z-index: 1000;
+        animation: slideIn 0.3s ease;
+      `;
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.remove();
+      }, 3000);
     }
     
     function showLoading(message) {
@@ -1342,7 +1397,7 @@
     
     // Validate word count against limits
     function validateWordCount(wordCount) {
-      const maxInputWords = 15000; // Maximum input limit
+      const maxInputWords = 1000; // Maximum input limit for all users
       
       const optimizeBtn = document.querySelector('.btn-primary');
       const warningDiv = document.getElementById('word-count-warning');
@@ -1363,13 +1418,15 @@
         if (optimizeBtn) optimizeBtn.disabled = true;
       } else {
         // Calculate and show estimated credits needed
-        const estimatedCredits = Math.ceil(wordCount / 20) + Math.ceil((wordCount * 1.5) / 10);
+        const estimatedInputCredits = Math.ceil(wordCount / 10); // 1 credit per 10 input words
+        const estimatedOutputCredits = Math.ceil((wordCount * 1.5) / 5); // 1 credit per 5 output words
+        const estimatedCredits = estimatedInputCredits + estimatedOutputCredits;
         
         if (estimatedCredits > 0) {
           const warning = document.createElement('div');
           warning.id = 'word-count-warning';
           warning.className = 'alert alert-info mt-2';
-          warning.innerHTML = `ℹ️ This will use approximately ${estimatedCredits} credits.`;
+          warning.innerHTML = `ℹ️ Estimated cost: ${estimatedCredits} credits (${estimatedInputCredits} for input + ${estimatedOutputCredits} for output)`;
           originalPrompt.parentNode.appendChild(warning);
         }
         
@@ -1377,9 +1434,63 @@
       }
     }
     
+    // Free prompt analysis (no authentication required)
+    async function analyzeFreePrompt(prompt) {
+      try {
+        const response = await fetch('/api/prompt/analyze-free', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ prompt })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          updateQualityMetrics(data.analysis);
+        } else {
+          console.error('Analysis failed:', data.error);
+        }
+      } catch (error) {
+        console.error('Error analyzing prompt:', error);
+      }
+    }
+    
     function loadHistoryItem(itemId) {
       // Load specific history item
-      alert('Loading history item: ' + itemId + '\n\nThis feature will be implemented to load and restore previous optimizations.');
+      alert('Loading history item: ' + itemId + '\n\nThis will restore the previous optimization to the input field.');
+    }
+    
+    // Copy optimized prompt to clipboard
+    function copyOptimizedPrompt() {
+      const optimizedText = document.getElementById('optimized-prompt-output').value;
+      if (!optimizedText) {
+        alert('No optimized prompt to copy. Please optimize a prompt first.');
+        return;
+      }
+      copyToClipboard(optimizedText);
+    }
+    
+    // Download optimized prompt
+    function downloadOptimizedPrompt() {
+      const optimizedText = document.getElementById('optimized-prompt-output').value;
+      if (!optimizedText) {
+        alert('No optimized prompt to download. Please optimize a prompt first.');
+        return;
+      }
+      
+      const blob = new Blob([optimizedText], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `optimized-prompt-${Date.now()}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showNotification('Optimized prompt downloaded!');
     }
   </script>
   
