@@ -114,6 +114,37 @@ class LLMService {
     }
 
     /**
+     * Generate content using Gemini API
+     * @param {string} prompt - The content prompt
+     * @param {string} style - Writing style
+     * @param {string} tone - Writing tone
+     * @param {number} wordCount - Target word count
+     * @param {string} qualityTier - Quality tier ('standard' or 'premium')
+     * @returns {Promise<string>} Generated content
+     */
+    async generateContentWithGemini(prompt, style = 'Academic', tone = 'Formal', wordCount = 500, qualityTier = 'standard') {
+        if (!this.geminiApiKey) {
+            throw new Error('Gemini API key not configured. Please set GEMINI_API_KEY environment variable.');
+        }
+
+        const { GoogleGenerativeAI } = require('@google/generative-ai');
+        const genAI = new GoogleGenerativeAI(this.geminiApiKey);
+        
+        // Select model based on quality tier
+        const modelName = qualityTier === 'premium' ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
+        const model = genAI.getGenerativeModel({ model: modelName });
+        
+        const systemPrompt = this.buildSystemPrompt(style, tone, wordCount);
+        const userPrompt = this.buildUserPrompt(prompt, wordCount);
+        
+        const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
+        
+        const result = await model.generateContent(fullPrompt);
+        const response = await result.response;
+        return response.text();
+    }
+
+    /**
      * Generate fallback content when LLM fails
      */
     _generateFallbackContent(prompt, style, tone, wordCount, reason, error = null) {

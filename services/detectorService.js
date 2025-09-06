@@ -305,7 +305,7 @@ class DetectorService {
       // Deduct credits atomically for content generation
       const creditResult = await this.atomicCredit.deductCreditsAtomic(
         userId,
-        creditsNeeded, // Pass credits needed for generation
+        creditsNeeded,
         planValidation.userPlan.planType,
         'detector'
       );
@@ -338,7 +338,8 @@ class DetectorService {
           improvedContent,
           originalWordCount: wordCount,
           newWordCount: this.calculateWordCount(improvedContent),
-          creditsUsed: creditResult.creditsDeducted
+          creditsUsed: creditResult.creditsDeducted,
+          newBalance: creditResult.newBalance
         };
 
       } catch (generationError) {
@@ -436,6 +437,7 @@ class DetectorService {
           detectionResults: initialDetection.results,
           cyclesUsed: 0,
           totalCreditsUsed: initialDetection.creditsUsed,
+          newBalance: initialDetection.newBalance,
           message: 'No issues detected. Content is clean.'
         };
       }
@@ -457,7 +459,7 @@ class DetectorService {
       // Deduct credits for the entire removal process (1:5 ratio)
       const removalCreditResult = await this.atomicCredit.deductCreditsAtomic(
         userId,
-        generationCredits, // Pass credits needed for generation
+        generationCredits,
         planValidation.userPlan.planType,
         'detector'
       );
@@ -511,6 +513,7 @@ class DetectorService {
           cyclesUsed: cycleCount,
           detectedWordCount,
           totalCreditsUsed: initialDetection.creditsUsed + removalCreditResult.creditsDeducted,
+          newBalance: removalCreditResult.newBalance,
           message: `Content improved through ${cycleCount} cycle(s). Issues ${this.hasDetectedIssues(currentDetection) ? 'significantly reduced' : 'resolved'}.`
         };
 

@@ -280,7 +280,7 @@ router.post('/workflow', authenticateToken, async (req, res) => {
         finalDetection: result.finalDetection,
         cyclesUsed: result.cyclesUsed,
         detectedWordCount: result.detectedWordCount,
-        totalCreditsUsed: result.totalCreditsUsed,
+          newBalance: result.newBalance,
         newBalance: creditDeductionResult.newBalance + removalCreditResult.newBalance,
         improvementSummary: {
           plagiarismReduced: result.initialDetection.plagiarism && result.finalDetection.plagiarism ? 

@@ -121,8 +121,25 @@ app.listen(PORT, () => {
     
     // Log API key status (without exposing actual keys)
     console.log('API Keys Status:');
-    console.log(`- OpenAI: ${process.env.OPENAI_API_KEY ? '✓ Configured' : '✗ Missing'}`);
     console.log(`- Gemini: ${process.env.GEMINI_API_KEY ? '✓ Configured' : '✗ Missing'}`);
     console.log(`- Originality.ai: ${process.env.ORIGINALITY_AI_API_KEY ? '✓ Configured' : '✗ Missing'}`);
     console.log(`- Zotero: ${process.env.ZOTERO_API_KEY ? '✓ Configured' : '○ Optional'}`);
+    
+    // Critical API key validation
+    const missingKeys = [];
+    if (!process.env.GEMINI_API_KEY) missingKeys.push('GEMINI_API_KEY');
+    if (!process.env.ORIGINALITY_AI_API_KEY) missingKeys.push('ORIGINALITY_AI_API_KEY');
+    
+    if (missingKeys.length > 0) {
+        console.error('❌ CRITICAL: Missing required API keys:', missingKeys.join(', '));
+        console.error('❌ Application will not function properly without these keys!');
+        console.error('❌ Please set these environment variables before deployment.');
+        
+        if (NODE_ENV === 'production') {
+            console.error('❌ PRODUCTION MODE: Exiting due to missing API keys');
+            process.exit(1);
+        }
+    } else {
+        console.log('✅ All required API keys are configured');
+    }
 });
