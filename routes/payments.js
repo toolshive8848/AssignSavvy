@@ -196,7 +196,7 @@ async function handleSuccessfulPayment(paymentIntent) {
             return;
         }
         
-        // Add credits to user account in Firestore
+        // Add credits to user account in Firestore with atomic transaction
         const userRef = admin.firestore().collection('users').doc(userId);
         
         await admin.firestore().runTransaction(async (transaction) => {
@@ -215,6 +215,7 @@ async function handleSuccessfulPayment(paymentIntent) {
                 credits: newCredits,
                 plan: plan,
                 isPremium: true,
+                totalCreditsEarned: admin.firestore.FieldValue.increment(creditsToAdd),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
             
@@ -230,6 +231,8 @@ async function handleSuccessfulPayment(paymentIntent) {
             status: 'completed',
             stripePaymentIntentId: paymentIntent.id,
             creditsAdded: creditsToAdd,
+            paymentMethod: 'stripe',
+            metadata: paymentIntent.metadata,
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
         

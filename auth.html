@@ -805,6 +805,7 @@
       }
       
       try {
+        // Check if backend is available
         const response = await fetch('/api/auth/login', {
           method: 'POST',
           headers: {
@@ -812,6 +813,12 @@
           },
           body: JSON.stringify({ email, password })
         });
+        
+        // Check if response is actually JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error('Backend server not available. Using demo mode.');
+        }
         
         const result = await response.json();
         
@@ -832,7 +839,37 @@
         }
       } catch (error) {
         console.error('Login error:', error);
-        alert(`Login failed: ${error.message}`);
+        
+        // Fallback to demo authentication if backend is not available
+        if (error.message.includes('Backend server not available') || error.message.includes('Failed to fetch')) {
+          console.warn('Backend not available, using demo authentication');
+          
+          // Demo authentication for development
+          if (email === 'demo@example.com' && password === 'password123') {
+            const demoUser = {
+              uid: 'demo-user-123',
+              name: 'Demo User',
+              email: 'demo@example.com',
+              plan: 'free',
+              credits: 200,
+              isPremium: false
+            };
+            
+            localStorage.setItem('authToken', 'demo-token-' + Date.now());
+            localStorage.setItem('userData', JSON.stringify(demoUser));
+            
+            if (window.userSession) {
+              window.userSession.updateUser(demoUser);
+            }
+            
+            alert('Demo login successful! (Backend not available)');
+            handlePostAuthRedirect();
+          } else {
+            alert('Backend server not available. Use demo@example.com / password123 for demo access.');
+          }
+        } else {
+          alert(`Login failed: ${error.message}`);
+        }
       }
     }
     
@@ -861,6 +898,7 @@
       }
       
       try {
+        // Check if backend is available
         const response = await fetch('/api/auth/register', {
           method: 'POST',
           headers: {
@@ -873,6 +911,12 @@
             plan: selectedPlan || 'free'
           })
         });
+        
+        // Check if response is actually JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error('Backend server not available. Using demo mode.');
+        }
         
         const result = await response.json();
         
@@ -905,7 +949,45 @@
         }
       } catch (error) {
         console.error('Registration error:', error);
-        alert(`Registration failed: ${error.message}`);
+        
+        // Fallback to demo registration if backend is not available
+        if (error.message.includes('Backend server not available') || error.message.includes('Failed to fetch')) {
+          console.warn('Backend not available, using demo registration');
+          
+          // Demo registration for development
+          const demoUser = {
+            uid: 'demo-user-' + Date.now(),
+            name: name,
+            email: email,
+            plan: selectedPlan || 'free',
+            credits: selectedPlan === 'pro' ? 2000 : selectedPlan === 'custom' ? 3300 : 200,
+            isPremium: selectedPlan !== 'free'
+          };
+          
+          localStorage.setItem('authToken', 'demo-token-' + Date.now());
+          localStorage.setItem('userData', JSON.stringify(demoUser));
+          
+          if (window.userSession) {
+            window.userSession.updateUser(demoUser);
+          }
+          
+          alert('Demo account created successfully! (Backend not available)');
+          
+          // Handle payment redirect for paid plans
+          if (selectedPlan === 'pro' || selectedPlan === 'custom') {
+            setTimeout(() => {
+              if (confirm(`You will now be redirected to complete payment for the ${selectedPlan.toUpperCase()} plan. Continue?`)) {
+                handlePostAuthRedirect();
+              } else {
+                window.location.href = 'dashboard.html';
+              }
+            }, 500);
+          } else {
+            handlePostAuthRedirect();
+          }
+        } else {
+          alert(`Registration failed: ${error.message}`);
+        }
       }
     }
     
