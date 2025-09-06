@@ -331,7 +331,7 @@
   <script>
     // Global variables
     let currentResearchType = 'general';
-    let currentResearchId = null;
+    let currentResearchResults = null;
     let isResearching = false;
 
     // API helper functions
@@ -371,7 +371,7 @@
       document.getElementById('research-query').addEventListener('input', updateWordCount);
 
       // Research button
-      document.getElementById('research-btn').addEventListener('click', startResearch);
+      document.getElementById('research-btn').addEventListener('click', handleResearchSubmit);
 
       // Export functionality
       document.getElementById('export-btn').addEventListener('click', () => {
@@ -400,7 +400,7 @@
       document.querySelector('.text-right').textContent = `${wordCount} words`;
     }
 
-    async function startResearch() {
+    async function handleResearchSubmit() {
       if (isResearching) return;
 
       const query = document.getElementById('research-query').value.trim();
@@ -411,13 +411,17 @@
         return;
       }
 
+      if (query.length > 2000) {
+        alert('Research query too long. Maximum 2000 characters allowed.');
+        return;
+      }
       // Get selected source types
       const sourceCheckboxes = document.querySelectorAll('input[type="checkbox"]:checked');
       const sources = Array.from(sourceCheckboxes).map(cb => cb.value);
 
       try {
         isResearching = true;
-        showResearchLoading('Analyzing your research query...');
+        showResearchLoading('Conducting real research with AI...');
 
         const requestData = {
           query,
@@ -439,8 +443,8 @@
         }
 
         if (result.success) {
-          displayResearchResults(result.data);
-          currentResearchId = result.data.researchId;
+          displayRealResearchResults(result.data);
+          currentResearchResults = result.data;
           updateUserCredits(result.data.metadata.creditsUsed, result.data.metadata.newBalance);
         } else {
           throw new Error(result.error || 'Research failed');
@@ -448,26 +452,26 @@
 
       } catch (error) {
         console.error('Research error:', error);
-        showResearchError(error.message);
+        showError(error.message);
       } finally {
         isResearching = false;
         hideResearchLoading();
       }
     }
 
-    function displayResearchResults(data) {
+    function displayRealResearchResults(data) {
       document.getElementById('no-results').style.display = 'none';
       document.getElementById('research-results').style.display = 'block';
       document.getElementById('results-actions').style.display = 'flex';
 
-      // Display research content
+      // Display real research content from API
       const results = data.results;
       
-      document.getElementById('executive-summary').innerHTML = formatContent(results.executiveSummary || 'No summary available');
-      document.getElementById('main-findings').innerHTML = formatContent(results.mainFindings || 'No findings available');
-      document.getElementById('key-insights').innerHTML = formatContent(results.keyInsights || 'No insights available');
+      document.getElementById('executive-summary').innerHTML = formatContent(results.executiveSummary || 'No executive summary generated');
+      document.getElementById('main-findings').innerHTML = formatContent(results.mainFindings || 'No main findings generated');
+      document.getElementById('key-insights').innerHTML = formatContent(results.keyInsights || 'No key insights generated');
 
-      // Display sources
+      // Display real sources from research
       const sourcesList = document.getElementById('sources-list');
       const sources = results.sources || [];
       document.getElementById('source-count').textContent = sources.length;
@@ -479,7 +483,7 @@
         sourceItem.innerHTML = `
           <div class="flex justify-between items-start">
             <div class="flex-1">
-              <h6 class="font-medium mb-1">${source.title || `Source ${index + 1}`}</h6>
+              <h6 class="font-medium mb-1">${source.title || source.citation || `Source ${index + 1}`}</h6>
               <p class="text-sm text-gray mb-2">${source.citation || 'No citation available'}</p>
               ${source.url ? `<a href="${source.url}" target="_blank" class="text-blue-600 text-sm hover:underline">
                 <i class="fas fa-external-link-alt"></i> View Source
@@ -493,11 +497,11 @@
         sourcesList.appendChild(sourceItem);
       });
 
-      // Update stats
+      // Update real stats from API response
       document.getElementById('research-word-count').textContent = data.metadata.wordCount || 0;
       document.getElementById('research-credits-used').textContent = data.metadata.creditsUsed || 0;
       document.getElementById('research-time').textContent = `${((data.metadata.processingTime || 0) / 1000).toFixed(1)}s`;
-      document.getElementById('quality-score').textContent = data.results.qualityScore || 'N/A';
+      document.getElementById('quality-score').textContent = data.metadata.qualityScore || 'N/A';
     }
 
     function formatContent(content) {
@@ -531,14 +535,14 @@
       document.getElementById('research-btn').innerHTML = '<i class="fas fa-search"></i> Start Research';
     }
 
-    function showResearchError(message) {
+    function showError(message) {
       document.getElementById('loading-research').style.display = 'none';
       document.getElementById('no-results').style.display = 'block';
-      alert(`Research Error: ${message}`);
+      alert(`Error: ${message}`);
     }
 
     async function downloadExport() {
-      if (!currentResearchId) {
+      if (!currentResearchResults) {
         alert('No research results to export');
         return;
       }
@@ -546,7 +550,7 @@
       try {
         const format = document.querySelector('input[name="export-format"]:checked').value;
         
-        const response = await makeAuthenticatedRequest(`/api/research/export/${currentResearchId}`, {
+        const response = await makeAuthenticatedRequest(`/api/research/export/${currentResearchResults.researchId}`, {
           method: 'POST',
           body: JSON.stringify({ format })
         });
@@ -560,7 +564,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `research-export-${currentResearchId}.${format}`;
+        a.download = `research-export-${currentResearchResults.researchId}.${format}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -576,12 +580,13 @@
     }
 
     async function saveResearchToHistory() {
-      if (!currentResearchId) {
+      if (!currentResearchResults) {
         alert('No research results to save');
         return;
       }
 
       try {
+        // Research is automatically saved to history when generated
         showNotification('Research already saved to history!');
       } catch (error) {
         console.error('Save error:', error);
@@ -594,7 +599,7 @@
         const response = await makeAuthenticatedRequest('/api/research/history?limit=10');
         const result = await response.json();
 
-        if (result.success) {
+        if (result.success && result.data) {
           displayResearchHistory(result.data.history);
         } else {
           throw new Error(result.error || 'Failed to load history');
@@ -607,7 +612,6 @@
     }
 
     function displayResearchHistory(history) {
-      // Simple history display - could be enhanced with a proper modal
       if (history.length === 0) {
         alert('No research history found');
         return;
@@ -615,7 +619,7 @@
 
       let historyText = 'Recent Research:\n\n';
       history.slice(0, 5).forEach((item, index) => {
-        const date = new Date(item.timestamp?.toDate()).toLocaleDateString();
+        const date = new Date(item.timestamp?.toDate ? item.timestamp.toDate() : item.timestamp).toLocaleDateString();
         historyText += `${index + 1}. ${item.query} (${date})\n`;
       });
 
