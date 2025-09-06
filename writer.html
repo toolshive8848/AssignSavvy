@@ -692,6 +692,219 @@
             </div>
           </div>
         </div>
+        
+        <!-- Canvas-Style Content Panel -->
+        <div class="lg:col-span-3" id="content-canvas" style="display: none;">
+          <div class="canvas-container">
+            <div class="canvas-header">
+              <div class="canvas-title">
+                <h3 id="canvas-content-title">Generated Content</h3>
+                <div class="canvas-meta">
+                  <span id="canvas-word-count">0 words</span>
+                  <span class="separator">•</span>
+                  <span id="canvas-quality-tier">Standard Quality</span>
+                  <span class="separator">•</span>
+                  <span id="canvas-generation-time">0s</span>
+                </div>
+              </div>
+              <div class="canvas-actions">
+                <button class="canvas-btn preview-btn active" id="preview-tab">
+                  <i class="fas fa-eye"></i>
+                  Preview
+                </button>
+                <button class="canvas-btn edit-btn" id="edit-tab">
+                  <i class="fas fa-edit"></i>
+                  Edit
+                </button>
+                <button class="canvas-btn citation-btn" id="citation-tab">
+                  <i class="fas fa-quote-right"></i>
+                  Citations
+                </button>
+                <button class="canvas-btn download-btn" id="download-tab">
+                  <i class="fas fa-download"></i>
+                  Download
+                </button>
+              </div>
+            </div>
+            
+            <div class="canvas-content">
+              <!-- Preview Panel -->
+              <div id="preview-panel" class="canvas-panel active">
+                <div class="preview-content" id="preview-content">
+                  <p class="text-gray text-center">Generated content will appear here...</p>
+                </div>
+              </div>
+              
+              <!-- Edit Panel -->
+              <div id="edit-panel" class="canvas-panel">
+                <div class="edit-toolbar">
+                  <button class="toolbar-btn" id="bold-btn" title="Bold">
+                    <i class="fas fa-bold"></i>
+                  </button>
+                  <button class="toolbar-btn" id="italic-btn" title="Italic">
+                    <i class="fas fa-italic"></i>
+                  </button>
+                  <button class="toolbar-btn" id="underline-btn" title="Underline">
+                    <i class="fas fa-underline"></i>
+                  </button>
+                  <div class="toolbar-separator"></div>
+                  <button class="toolbar-btn" id="undo-btn" title="Undo">
+                    <i class="fas fa-undo"></i>
+                  </button>
+                  <button class="toolbar-btn" id="redo-btn" title="Redo">
+                    <i class="fas fa-redo"></i>
+                  </button>
+                  <div class="toolbar-separator"></div>
+                  <button class="toolbar-btn" id="save-changes-btn" title="Save Changes">
+                    <i class="fas fa-save"></i>
+                    Save
+                  </button>
+                </div>
+                <textarea id="edit-content" class="edit-textarea" placeholder="Edit your content here..."></textarea>
+                <div class="edit-footer">
+                  <span id="edit-word-count">0 words</span>
+                  <span class="edit-status" id="edit-status">Ready to edit</span>
+                </div>
+              </div>
+              
+              <!-- Citation Panel -->
+              <div id="citation-panel" class="canvas-panel">
+                <div class="citation-header">
+                  <h4>Citations & Bibliography</h4>
+                  <div class="citation-style-selector">
+                    <label for="citation-style-select">Style:</label>
+                    <select id="citation-style-select" class="citation-select">
+                      <option value="APA">APA</option>
+                      <option value="MLA">MLA</option>
+                      <option value="Chicago">Chicago</option>
+                      <option value="Harvard">Harvard</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div class="citation-content">
+                  <div id="no-citations" class="citation-empty">
+                    <i class="fas fa-quote-right text-4xl text-gray mb-4"></i>
+                    <h4>No Citations Available</h4>
+                    <p class="text-gray">Citations will appear here if your content includes references</p>
+                    <button class="btn btn-outline" id="generate-citations-btn">
+                      <i class="fas fa-plus"></i>
+                      Generate Citations
+                    </button>
+                  </div>
+                  
+                  <div id="citations-list" style="display: none;">
+                    <div class="citation-section">
+                      <h5>In-Text Citations</h5>
+                      <div id="in-text-citations" class="citation-items"></div>
+                    </div>
+                    
+                    <div class="citation-section">
+                      <h5>Bibliography</h5>
+                      <div id="bibliography-citations" class="citation-items"></div>
+                    </div>
+                    
+                    <div class="citation-actions">
+                      <button class="btn btn-outline" id="copy-citations-btn">
+                        <i class="fas fa-copy"></i>
+                        Copy Citations
+                      </button>
+                      <button class="btn btn-outline" id="export-citations-btn">
+                        <i class="fas fa-download"></i>
+                        Export Citations
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Download Panel -->
+              <div id="download-panel" class="canvas-panel">
+                <div class="download-header">
+                  <h4>Download Options</h4>
+                  <p class="text-gray">Choose your preferred format and download your content</p>
+                </div>
+                
+                <div class="download-formats">
+                  <div class="format-option" data-format="docx">
+                    <div class="format-icon">
+                      <i class="fas fa-file-word"></i>
+                    </div>
+                    <div class="format-info">
+                      <h5>Microsoft Word (.docx)</h5>
+                      <p>Professional document format with formatting</p>
+                    </div>
+                    <button class="format-download-btn" data-format="docx">
+                      <i class="fas fa-download"></i>
+                    </button>
+                  </div>
+                  
+                  <div class="format-option" data-format="pdf">
+                    <div class="format-icon">
+                      <i class="fas fa-file-pdf"></i>
+                    </div>
+                    <div class="format-info">
+                      <h5>PDF Document (.pdf)</h5>
+                      <p>Portable document format, ready to print</p>
+                    </div>
+                    <button class="format-download-btn" data-format="pdf">
+                      <i class="fas fa-download"></i>
+                    </button>
+                  </div>
+                  
+                  <div class="format-option" data-format="txt">
+                    <div class="format-icon">
+                      <i class="fas fa-file-alt"></i>
+                    </div>
+                    <div class="format-info">
+                      <h5>Plain Text (.txt)</h5>
+                      <p>Simple text format, compatible everywhere</p>
+                    </div>
+                    <button class="format-download-btn" data-format="txt">
+                      <i class="fas fa-download"></i>
+                    </button>
+                  </div>
+                  
+                  <div class="format-option" data-format="html">
+                    <div class="format-icon">
+                      <i class="fas fa-code"></i>
+                    </div>
+                    <div class="format-info">
+                      <h5>HTML Document (.html)</h5>
+                      <p>Web format with styling and structure</p>
+                    </div>
+                    <button class="format-download-btn" data-format="html">
+                      <i class="fas fa-download"></i>
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="download-options">
+                  <div class="form-group">
+                    <label for="download-title">Document Title</label>
+                    <input type="text" id="download-title" class="form-input" placeholder="Enter document title...">
+                  </div>
+                  
+                  <div class="form-group">
+                    <label class="checkbox-container">
+                      <input type="checkbox" id="include-metadata" checked>
+                      <span class="checkmark"></span>
+                      Include generation metadata
+                    </label>
+                  </div>
+                  
+                  <div class="form-group">
+                    <label class="checkbox-container">
+                      <input type="checkbox" id="include-citations">
+                      <span class="checkmark"></span>
+                      Include citations (if available)
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
