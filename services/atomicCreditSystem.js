@@ -1,12 +1,13 @@
-const admin = require('firebase-admin');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
 /**
- * AtomicCreditSystem class for handling credit calculations and atomic Firestore transactions
+ * AtomicCreditSystem class for handling credit calculations and atomic SQLite transactions
  * Implements different word-to-credit ratios for different tools
  */
 class AtomicCreditSystem {
-    constructor() {
-        this.db = admin.firestore();
+    constructor(dbPath = null) {
+        this.dbPath = dbPath || process.env.DATABASE_PATH || path.join(__dirname, '..', 'assignment_writer.db');
         this.CREDIT_RATIOS = {
             writing: 3,    // 1 credit per 3 words for writing/assignments
             research: 5,   // 1 credit per 5 words for research
@@ -20,11 +21,14 @@ class AtomicCreditSystem {
     }
 
     /**
+     * Get database connection
+     */
+    getDatabase() {
+        return new sqlite3.Database(this.dbPath);
+    }
+
+    /**
      * Calculate required credits based on total requested words/credits and tool type
-     * @param {number} requestedAmount - Total words requested
-     * @param {string} toolType - Type of tool ('writing', 'research', 'detector', 'detector_generation', 'prompt')
-     * @param {string} operation - For detector: 'detection' or 'generation'
-     * @returns {number} Required credits
      */
     calculateRequiredCredits(requestedAmount, toolType = 'writing', operation = null) {
         if (!requestedAmount || requestedAmount <= 0) {
@@ -55,24 +59,17 @@ class AtomicCreditSystem {
     }
 
     /**
-     * Atomic credit deduction with Firestore transaction
-     * @param {string} userId - User ID
-     * @param {number} creditsToDeduct - Credits to deduct
-     * @param {string} planType - User's plan type
-     * @param {string} toolType - Type of tool ('writing', 'research', or 'detector')
-     * @returns {Promise<Object>} Transaction result
+     * Atomic credit deduction with SQLite transaction
      */
     async deductCreditsAtomic(userId, creditsToDeduct, planType, toolType = 'writing') {
         const requiredCredits = creditsToDeduct;
-        
-        // Word count is 0 for credit-based deduction
-        const wordCount = 0;
+        const wordCount = 0; // Word count is 0 for credit-based deduction
         
         let attempt = 0;
         while (attempt < this.MAX_RETRY_ATTEMPTS) {
             try {
                 const result = await this.executeTransaction(userId, requiredCredits, wordCount, planType);
-                console.log(`Atomic credit deduction successful for user ${userId}: -${requiredCredits} credits, +${wordCount} monthly words`);
+                console.log(`Atomic credit deduction successful for user ${userId}: -${requiredCredits} credits`);
                 result.toolType = toolType;
                 result.creditsDeducted = creditsToDeduct;
                 return result;
@@ -92,251 +89,234 @@ class AtomicCreditSystem {
     }
 
     /**
-     * Execute Firestore transaction for credit deduction
-     * @param {string} userId - User ID
-     * @param {number} requiredCredits - Credits to deduct
-     * @param {number} requestedWordCount - Words to add to monthly counter
-     * @param {string} planType - User's plan type
-     * @returns {Promise<Object>} Transaction result
+     * Execute SQLite transaction for credit deduction
      */
     async executeTransaction(userId, requiredCredits, requestedWordCount, planType) {
-        return await this.db.runTransaction(async (transaction) => {
-            // References
-            const userRef = this.db.collection('users').doc(userId);
-            const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-            const monthlyUsageRef = this.db.collection('monthlyUsage').doc(`${userId}_${currentMonth}`);
+        return new Promise((resolve, reject) => {
+            const db = this.getDatabase();
             
-            // Read current state
-            const [userDoc, monthlyUsageDoc] = await Promise.all([
-                transaction.get(userRef),
-                transaction.get(monthlyUsageRef)
-            ]);
-            
-            // Validate user exists
-            if (!userDoc.exists) {
-                throw new Error('User not found');
-            }
-            
-            const userData = userDoc.data();
-            const currentCredits = userData.credits || 0;
-            
-            // Check sufficient credits
-            if (currentCredits < requiredCredits) {
-                throw new Error(`Insufficient credits. Required: ${requiredCredits}, Available: ${currentCredits}. Please top-up.`);
-            }
-            
-            // Get current monthly usage
-            const currentMonthlyData = monthlyUsageDoc.exists ? monthlyUsageDoc.data() : {
-                userId,
-                monthKey: currentMonth,
-                wordsGenerated: 0,
-                creditsUsed: 0,
-                requestCount: 0,
-                createdAt: new Date()
-            };
-            
-            // For freemium users, check monthly word limit
-            if (planType === 'freemium') {
-                const FREEMIUM_MONTHLY_LIMIT = 1000;
-                const newMonthlyWords = (currentMonthlyData.wordsGenerated || 0) + requestedWordCount;
+            db.serialize(() => {
+                db.run('BEGIN TRANSACTION');
                 
-                if (newMonthlyWords > FREEMIUM_MONTHLY_LIMIT) {
-                    throw new Error(`Monthly word limit exceeded. Current: ${currentMonthlyData.wordsGenerated}, Requested: ${requestedWordCount}, Limit: ${FREEMIUM_MONTHLY_LIMIT}`);
-                }
-            }
-            
-            // Calculate new balances
-            const newCreditBalance = currentCredits - requiredCredits;
-            const newMonthlyWords = (currentMonthlyData.wordsGenerated || 0) + requestedWordCount;
-            const newMonthlyCredits = (currentMonthlyData.creditsUsed || 0) + requiredCredits;
-            const newRequestCount = (currentMonthlyData.requestCount || 0) + 1;
-            
-            // Prepare transaction data
-            const transactionData = {
-                userId,
-                transactionId: this.generateTransactionId(),
-                type: 'credit_deduction',
-                amount: requiredCredits,
-                wordCount: requestedWordCount,
-                planType,
-                timestamp: new Date(),
-                previousBalance: currentCredits,
-                newBalance: newCreditBalance,
-                monthKey: currentMonth,
-                status: 'completed'
-            };
-            
-            // Update user credits
-            transaction.update(userRef, {
-                credits: newCreditBalance,
-                lastCreditDeduction: new Date(),
-                totalCreditsUsed: (userData.totalCreditsUsed || 0) + requiredCredits,
-                totalWordsGenerated: (userData.totalWordsGenerated || 0) + requestedWordCount
+                // Check current user credits
+                db.get('SELECT credits FROM users WHERE id = ?', [userId], (err, user) => {
+                    if (err) {
+                        db.run('ROLLBACK');
+                        db.close();
+                        reject(new Error('Database error during credit check'));
+                        return;
+                    }
+                    
+                    if (!user) {
+                        db.run('ROLLBACK');
+                        db.close();
+                        reject(new Error('User not found'));
+                        return;
+                    }
+                    
+                    const currentCredits = user.credits || 0;
+                    
+                    // Check sufficient credits
+                    if (currentCredits < requiredCredits) {
+                        db.run('ROLLBACK');
+                        db.close();
+                        reject(new Error(`Insufficient credits. Required: ${requiredCredits}, Available: ${currentCredits}`));
+                        return;
+                    }
+                    
+                    // Calculate new balance
+                    const newCreditBalance = currentCredits - requiredCredits;
+                    const transactionId = this.generateTransactionId();
+                    
+                    // Update user credits
+                    db.run(
+                        'UPDATE users SET credits = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                        [newCreditBalance, userId],
+                        (updateErr) => {
+                            if (updateErr) {
+                                db.run('ROLLBACK');
+                                db.close();
+                                reject(new Error('Failed to update user credits'));
+                                return;
+                            }
+                            
+                            // Record transaction in usage tracking
+                            db.run(
+                                'INSERT INTO user_usage_tracking (user_id, word_count, credits_used, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
+                                [userId, requestedWordCount, requiredCredits],
+                                (trackingErr) => {
+                                    // Don't fail transaction if tracking fails
+                                    if (trackingErr) {
+                                        console.warn('Failed to record usage tracking:', trackingErr);
+                                    }
+                                    
+                                    db.run('COMMIT', (commitErr) => {
+                                        db.close();
+                                        
+                                        if (commitErr) {
+                                            reject(new Error('Transaction commit failed'));
+                                            return;
+                                        }
+                                        
+                                        resolve({
+                                            success: true,
+                                            transactionId,
+                                            creditsDeducted: requiredCredits,
+                                            wordsAllocated: requestedWordCount,
+                                            previousBalance: currentCredits,
+                                            newBalance: newCreditBalance,
+                                            timestamp: new Date()
+                                        });
+                                    });
+                                }
+                            );
+                        }
+                    );
+                });
             });
-            
-            // Update monthly usage
-            transaction.set(monthlyUsageRef, {
-                userId,
-                monthKey: currentMonth,
-                wordsGenerated: newMonthlyWords,
-                creditsUsed: newMonthlyCredits,
-                requestCount: newRequestCount,
-                lastUpdated: new Date(),
-                createdAt: currentMonthlyData.createdAt || new Date()
-            }, { merge: true });
-            
-            // Record transaction
-            const transactionRef = this.db.collection('creditTransactions').doc();
-            transaction.set(transactionRef, transactionData);
-            
-            return {
-                success: true,
-                transactionId: transactionData.transactionId,
-                creditsDeducted: requiredCredits,
-                wordsAllocated: requestedWordCount,
-                previousBalance: currentCredits,
-                newBalance: newCreditBalance,
-                monthlyUsage: {
-                    wordsGenerated: newMonthlyWords,
-                    creditsUsed: newMonthlyCredits,
-                    requestCount: newRequestCount
-                },
-                timestamp: transactionData.timestamp
-            };
         });
     }
 
     /**
      * Rollback transaction in case of failure
-     * @param {string} userId - User ID
-     * @param {string} transactionId - Transaction ID to rollback
-     * @param {number} creditsToRestore - Credits to restore
-     * @param {number} wordsToDeduct - Words to deduct from monthly counter
-     * @returns {Promise<Object>} Rollback result
      */
     async rollbackTransaction(userId, transactionId, creditsToRestore, wordsToDeduct) {
-        try {
-            return await this.db.runTransaction(async (transaction) => {
-                const userRef = this.db.collection('users').doc(userId);
-                const currentMonth = new Date().toISOString().slice(0, 7);
-                const monthlyUsageRef = this.db.collection('monthlyUsage').doc(`${userId}_${currentMonth}`);
-                const transactionRef = this.db.collection('creditTransactions').doc(transactionId);
+        return new Promise((resolve, reject) => {
+            const db = this.getDatabase();
+            
+            db.serialize(() => {
+                db.run('BEGIN TRANSACTION');
                 
-                // Read current state
-                const [userDoc, monthlyUsageDoc, transactionDoc] = await Promise.all([
-                    transaction.get(userRef),
-                    transaction.get(monthlyUsageRef),
-                    transaction.get(transactionRef)
-                ]);
-                
-                if (!userDoc.exists) {
-                    throw new Error('User not found for rollback');
-                }
-                
-                if (!transactionDoc.exists) {
-                    throw new Error('Transaction not found for rollback');
-                }
-                
-                const userData = userDoc.data();
-                const monthlyData = monthlyUsageDoc.exists ? monthlyUsageDoc.data() : {};
-                
-                // Restore credits
-                const restoredBalance = (userData.credits || 0) + creditsToRestore;
-                
-                // Update user
-                transaction.update(userRef, {
-                    credits: restoredBalance,
-                    totalCreditsUsed: Math.max(0, (userData.totalCreditsUsed || 0) - creditsToRestore),
-                    totalWordsGenerated: Math.max(0, (userData.totalWordsGenerated || 0) - wordsToDeduct)
+                // Get current user credits
+                db.get('SELECT credits FROM users WHERE id = ?', [userId], (err, user) => {
+                    if (err) {
+                        db.run('ROLLBACK');
+                        db.close();
+                        reject(new Error('Database error during rollback'));
+                        return;
+                    }
+                    
+                    if (!user) {
+                        db.run('ROLLBACK');
+                        db.close();
+                        reject(new Error('User not found for rollback'));
+                        return;
+                    }
+                    
+                    const currentCredits = user.credits || 0;
+                    const restoredBalance = currentCredits + creditsToRestore;
+                    
+                    // Restore credits
+                    db.run(
+                        'UPDATE users SET credits = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                        [restoredBalance, userId],
+                        (updateErr) => {
+                            if (updateErr) {
+                                db.run('ROLLBACK');
+                                db.close();
+                                reject(new Error('Failed to restore credits'));
+                                return;
+                            }
+                            
+                            // Record rollback transaction
+                            db.run(
+                                'INSERT INTO user_usage_tracking (user_id, word_count, credits_used, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
+                                [userId, -wordsToDeduct, -creditsToRestore],
+                                (trackingErr) => {
+                                    if (trackingErr) {
+                                        console.warn('Failed to record rollback tracking:', trackingErr);
+                                    }
+                                    
+                                    db.run('COMMIT', (commitErr) => {
+                                        db.close();
+                                        
+                                        if (commitErr) {
+                                            reject(new Error('Rollback commit failed'));
+                                            return;
+                                        }
+                                        
+                                        resolve({
+                                            success: true,
+                                            creditsRestored: creditsToRestore,
+                                            wordsDeducted: wordsToDeduct,
+                                            newBalance: restoredBalance,
+                                            rollbackTimestamp: new Date()
+                                        });
+                                    });
+                                }
+                            );
+                        }
+                    );
                 });
-                
-                // Update monthly usage
-                if (monthlyUsageDoc.exists) {
-                    transaction.update(monthlyUsageRef, {
-                        wordsGenerated: Math.max(0, (monthlyData.wordsGenerated || 0) - wordsToDeduct),
-                        creditsUsed: Math.max(0, (monthlyData.creditsUsed || 0) - creditsToRestore),
-                        requestCount: Math.max(0, (monthlyData.requestCount || 0) - 1),
-                        lastUpdated: new Date()
-                    });
-                }
-                
-                // Mark transaction as rolled back
-                transaction.update(transactionRef, {
-                    status: 'rolled_back',
-                    rollbackTimestamp: new Date(),
-                    rollbackReason: 'Content generation failed'
-                });
-                
-                return {
-                    success: true,
-                    creditsRestored: creditsToRestore,
-                    wordsDeducted: wordsToDeduct,
-                    newBalance: restoredBalance,
-                    rollbackTimestamp: new Date()
-                };
             });
-        } catch (error) {
-            console.error('Rollback transaction failed:', error);
-            throw new Error(`Rollback failed: ${error.message}`);
-        }
+        });
     }
 
     /**
      * Get user's current credit balance
-     * @param {string} userId - User ID
-     * @returns {Promise<Object>} Credit balance information
      */
     async getCreditBalance(userId) {
-        try {
-            const userRef = this.db.collection('users').doc(userId);
-            const userDoc = await userRef.get();
+        return new Promise((resolve, reject) => {
+            const db = this.getDatabase();
             
-            if (!userDoc.exists) {
-                throw new Error('User not found');
-            }
-            
-            const userData = userDoc.data();
-            return {
-                currentBalance: userData.credits || 0,
-                totalCreditsUsed: userData.totalCreditsUsed || 0,
-                totalWordsGenerated: userData.totalWordsGenerated || 0,
-                lastCreditDeduction: userData.lastCreditDeduction?.toDate() || null
-            };
-        } catch (error) {
-            console.error('Error getting credit balance:', error);
-            throw error;
-        }
+            db.get(
+                'SELECT credits, created_at FROM users WHERE id = ?',
+                [userId],
+                (err, user) => {
+                    db.close();
+                    
+                    if (err) {
+                        reject(new Error('Database error getting credit balance'));
+                        return;
+                    }
+                    
+                    if (!user) {
+                        reject(new Error('User not found'));
+                        return;
+                    }
+                    
+                    resolve({
+                        currentBalance: user.credits || 0,
+                        lastCreditDeduction: user.updated_at || null
+                    });
+                }
+            );
+        });
     }
 
     /**
      * Get transaction history for a user
-     * @param {string} userId - User ID
-     * @param {number} limit - Number of transactions to retrieve
-     * @returns {Promise<Array>} Transaction history
      */
     async getTransactionHistory(userId, limit = 50) {
-        try {
-            const transactionsRef = this.db.collection('creditTransactions')
-                .where('userId', '==', userId)
-                .orderBy('timestamp', 'desc')
-                .limit(limit);
+        return new Promise((resolve, reject) => {
+            const db = this.getDatabase();
             
-            const snapshot = await transactionsRef.get();
-            
-            return snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                timestamp: doc.data().timestamp?.toDate()
-            }));
-        } catch (error) {
-            console.error('Error getting transaction history:', error);
-            throw error;
-        }
+            db.all(
+                'SELECT * FROM user_usage_tracking WHERE user_id = ? ORDER BY created_at DESC LIMIT ?',
+                [userId, limit],
+                (err, transactions) => {
+                    db.close();
+                    
+                    if (err) {
+                        reject(new Error('Database error getting transaction history'));
+                        return;
+                    }
+                    
+                    resolve(transactions.map(tx => ({
+                        id: tx.id,
+                        userId: tx.user_id,
+                        wordCount: tx.word_count,
+                        creditsUsed: tx.credits_used,
+                        timestamp: tx.created_at,
+                        type: tx.credits_used > 0 ? 'deduction' : 'rollback'
+                    })));
+                }
+            );
+        });
     }
 
     /**
      * Generate unique transaction ID
-     * @returns {string} Transaction ID
      */
     generateTransactionId() {
         return `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -344,8 +324,6 @@ class AtomicCreditSystem {
 
     /**
      * Delay function for retry logic
-     * @param {number} ms - Milliseconds to delay
-     * @returns {Promise<void>}
      */
     delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
@@ -353,95 +331,78 @@ class AtomicCreditSystem {
 
     /**
      * Refund credits to user account
-     * @param {string} userId - User ID
-     * @param {number} creditsToRefund - Credits to refund
-     * @param {string} originalTransactionId - Original transaction ID for reference
-     * @returns {Promise<Object>} Refund result
      */
     async refundCredits(userId, creditsToRefund, originalTransactionId) {
-        try {
-            return await this.db.runTransaction(async (transaction) => {
-                const userRef = this.db.collection('users').doc(userId);
-                const userDoc = await transaction.get(userRef);
+        return new Promise((resolve, reject) => {
+            const db = this.getDatabase();
+            
+            db.serialize(() => {
+                db.run('BEGIN TRANSACTION');
                 
-                if (!userDoc.exists) {
-                    throw new Error('User not found');
-                }
-                
-                const userData = userDoc.data();
-                const currentCredits = userData.credits || 0;
-                const newCreditBalance = currentCredits + creditsToRefund;
-                
-                // Update user credits
-                transaction.update(userRef, {
-                    credits: newCreditBalance,
-                    lastUpdated: new Date()
+                db.get('SELECT credits FROM users WHERE id = ?', [userId], (err, user) => {
+                    if (err) {
+                        db.run('ROLLBACK');
+                        db.close();
+                        reject(new Error('Database error during refund'));
+                        return;
+                    }
+                    
+                    if (!user) {
+                        db.run('ROLLBACK');
+                        db.close();
+                        reject(new Error('User not found'));
+                        return;
+                    }
+                    
+                    const currentCredits = user.credits || 0;
+                    const newCreditBalance = currentCredits + creditsToRefund;
+                    const refundTransactionId = this.generateTransactionId();
+                    
+                    // Update user credits
+                    db.run(
+                        'UPDATE users SET credits = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                        [newCreditBalance, userId],
+                        (updateErr) => {
+                            if (updateErr) {
+                                db.run('ROLLBACK');
+                                db.close();
+                                reject(new Error('Failed to refund credits'));
+                                return;
+                            }
+                            
+                            // Record refund transaction
+                            db.run(
+                                'INSERT INTO user_usage_tracking (user_id, word_count, credits_used, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
+                                [userId, 0, -creditsToRefund],
+                                (trackingErr) => {
+                                    if (trackingErr) {
+                                        console.warn('Failed to record refund tracking:', trackingErr);
+                                    }
+                                    
+                                    db.run('COMMIT', (commitErr) => {
+                                        db.close();
+                                        
+                                        if (commitErr) {
+                                            reject(new Error('Refund commit failed'));
+                                            return;
+                                        }
+                                        
+                                        resolve({
+                                            success: true,
+                                            transactionId: refundTransactionId,
+                                            creditsRefunded: creditsToRefund,
+                                            previousBalance: currentCredits,
+                                            newBalance: newCreditBalance,
+                                            timestamp: new Date()
+                                        });
+                                    });
+                                }
+                            );
+                        }
+                    );
                 });
-                
-                // Record refund transaction
-                const refundTransactionData = {
-                    transactionId: this.generateTransactionId(),
-                    userId,
-                    type: 'refund',
-                    creditsRefunded: creditsToRefund,
-                    previousBalance: currentCredits,
-                    newBalance: newCreditBalance,
-                    originalTransactionId,
-                    timestamp: new Date(),
-                    status: 'completed'
-                };
-                
-                const refundTransactionRef = this.db.collection('creditTransactions').doc();
-                transaction.set(refundTransactionRef, refundTransactionData);
-                
-                return {
-                    success: true,
-                    transactionId: refundTransactionData.transactionId,
-                    creditsRefunded,
-                    previousBalance: currentCredits,
-                    newBalance: newCreditBalance,
-                    timestamp: refundTransactionData.timestamp
-                };
             });
-        } catch (error) {
-            console.error('Error refunding credits:', error);
-            throw new Error(`Credit refund failed: ${error.message}`);
-        }
-    }
-
-    /**
-     * Validate transaction integrity
-     * @param {string} transactionId - Transaction ID to validate
-     * @returns {Promise<Object>} Validation result
-     */
-    async validateTransaction(transactionId) {
-        try {
-            const transactionRef = this.db.collection('creditTransactions').doc(transactionId);
-            const transactionDoc = await transactionRef.get();
-            
-            if (!transactionDoc.exists) {
-                return {
-                    isValid: false,
-                    error: 'Transaction not found'
-                };
-            }
-            
-            const transactionData = transactionDoc.data();
-            
-            return {
-                isValid: true,
-                transaction: {
-                    ...transactionData,
-                    timestamp: transactionData.timestamp?.toDate()
-                }
-            };
-        } catch (error) {
-            console.error('Error validating transaction:', error);
-            return {
-                isValid: false,
-                error: error.message
-            };
-        }
+        });
     }
 }
 

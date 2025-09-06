@@ -1,13 +1,13 @@
-const db = require('../database/db');
-const UsageTracker = require('./usageTracker');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
 /**
- * PlanValidator class handles user plan validation and freemium restrictions
- * Implements strict checks for prompt length, output limits, and monthly usage
+ * PlanValidator class handles user plan validation and restrictions
+ * Uses SQLite for consistent data storage
  */
 class PlanValidator {
-    constructor() {
-        this.usageTracker = new UsageTracker();
+    constructor(dbPath = null) {
+        this.dbPath = dbPath || process.env.DATABASE_PATH || path.join(__dirname, '..', 'assignment_writer.db');
         this.planTypes = {
             FREEMIUM: 'freemium',
             PRO: 'pro',
@@ -18,28 +18,27 @@ class PlanValidator {
             freemium: {
                 maxPromptLength: 500, // words
                 maxOutputPerRequest: 1000, // words
-                // No monthly limits - purely credit-based system
             },
             pro: {
                 maxPromptLength: 5000, // words
                 maxOutputPerRequest: null, // unlimited (credit-based)
-                // No monthly limits - purely credit-based system
             },
             custom: {
                 maxPromptLength: 5000, // words
                 maxOutputPerRequest: null, // unlimited (credit-based)
-                // No monthly limits - purely credit-based system
             }
         };
     }
 
     /**
+     * Get database connection
+     */
+    getDatabase() {
+        return new sqlite3.Database(this.dbPath);
+    }
+
+    /**
      * Validate user request against plan limitations
-     * @param {number} userId - User ID
-     * @param {string} prompt - User's input prompt
-     * @param {number} requestedWordCount - Requested output word count
-     * @param {string} toolType - Type of tool ('writing' or 'research')
-     * @returns {Object} Validation result
      */
     async validateRequest(userId, prompt, requestedWordCount, toolType = 'writing') {
         try {
@@ -62,20 +61,20 @@ class PlanValidator {
                 };
             }
 
-            // 1. Check prompt length limits
+            // Check prompt length limits
             const promptWordCount = this.countWords(prompt);
             const promptValidation = this.validatePromptLength(userPlan.planType, promptWordCount);
             if (!promptValidation.isValid) {
                 return promptValidation;
             }
 
-            // 2. Check output word count limits per request
+            // Check output word count limits per request
             const outputValidation = this.validateOutputWordCount(userPlan.planType, requestedWordCount);
             if (!outputValidation.isValid) {
                 return outputValidation;
             }
 
-            // 3. Check credit availability (no monthly limits - purely credit-based system)
+            // Check credit availability
             const creditValidation = await this.validateCreditAvailability(userId, requestedWordCount, userPlan.planType, toolType);
             if (!creditValidation.isValid) {
                 return creditValidation;
@@ -102,9 +101,6 @@ class PlanValidator {
 
     /**
      * Validate user plan for specific tool access
-     * @param {number} userId - User ID
-     * @param {Object} options - Validation options
-     * @returns {Object} Validation result
      */
     async validateUserPlan(userId, options = {}) {
         try {
@@ -117,14 +113,10 @@ class PlanValidator {
                 };
             }
 
-            // Add hasDetectorAccess property based on plan type
-            // Now all users have detector access with the new requirements
+            // All users have access to all tools with credit-based system
             userPlan.hasDetectorAccess = true;
-            
-            // Add hasResearcherAccess property based on plan type
-            // Now all users have researcher access with credit-based system
             userPlan.hasResearcherAccess = true;
-
+            
             return {
                 isValid: true,
                 userPlan
@@ -142,10 +134,42 @@ class PlanValidator {
     }
 
     /**
+     * Get user plan information from SQLite
+     */
+    async getUserPlan(userId) {
+        return new Promise((resolve, reject) => {
+            const db = this.getDatabase();
+            
+            db.get(
+                'SELECT id, credits, is_premium, created_at, updated_at FROM users WHERE id = ?',
+                [userId],
+                (err, user) => {
+                    db.close();
+                    
+                    if (err) {
+                        reject(new Error('Database error getting user plan'));
+                        return;
+                    }
+                    
+                    if (!user) {
+                        resolve(null);
+                        return;
+                    }
+                    
+                    resolve({
+                        userId: user.id,
+                        planType: user.is_premium ? 'pro' : 'freemium',
+                        credits: user.credits || 0,
+                        createdAt: user.created_at,
+                        updatedAt: user.updated_at
+                    });
+                }
+            );
+        });
+    }
+
+    /**
      * Validate prompt length against plan limits
-     * @param {string} planType - User's plan type
-     * @param {number} promptWordCount - Word count of the prompt
-     * @returns {Object} Validation result
      */
     validatePromptLength(planType, promptWordCount) {
         const maxPromptLength = this.limits[planType].maxPromptLength;
@@ -170,9 +194,6 @@ class PlanValidator {
 
     /**
      * Validate output word count against plan limits
-     * @param {string} planType - User's plan type
-     * @param {number} requestedWordCount - Requested output word count
-     * @returns {Object} Validation result
      */
     validateOutputWordCount(planType, requestedWordCount) {
         const maxOutputPerRequest = this.limits[planType].maxOutputPerRequest;
@@ -196,80 +217,7 @@ class PlanValidator {
     }
 
     /**
-     * Validate monthly usage limits for freemium users
-     * @param {number} userId - User ID
-     * @param {number} requestedWordCount - Requested output word count
-     * @returns {Object} Validation result
-     */
-    async validateMonthlyLimits(userId, requestedWordCount) {
-        try {
-            const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
-            
-            // Get current month's usage
-            const monthlyUsage = await this.getMonthlyUsage(userId, currentMonth);
-            
-            const monthlyWordLimit = this.limits.freemium.monthlyWordLimit;
-            const monthlyCreditLimit = this.limits.freemium.monthlyCreditLimit;
-            
-            // Check word limit
-            if (monthlyUsage.totalWords >= monthlyWordLimit) {
-                return {
-                    isValid: false,
-                    error: 'Monthly word limit reached. Upgrade to Pro for unlimited generation!',
-                    errorCode: 'MONTHLY_WORD_LIMIT_REACHED',
-                    currentUsage: monthlyUsage.totalWords,
-                    monthlyLimit: monthlyWordLimit
-                };
-            }
-            
-            // Check if this request would exceed the monthly word limit
-            if (monthlyUsage.totalWords + requestedWordCount > monthlyWordLimit) {
-                return {
-                    isValid: false,
-                    error: `This request would exceed your monthly word limit. Remaining: ${monthlyWordLimit - monthlyUsage.totalWords} words.`,
-                    errorCode: 'MONTHLY_WORD_LIMIT_WOULD_EXCEED',
-                    currentUsage: monthlyUsage.totalWords,
-                    requestedWords: requestedWordCount,
-                    remainingWords: monthlyWordLimit - monthlyUsage.totalWords,
-                    monthlyLimit: monthlyWordLimit
-                };
-            }
-            
-            // Check credit limit
-            if (monthlyUsage.totalCredits >= monthlyCreditLimit) {
-                return {
-                    isValid: false,
-                    error: 'Monthly credit limit reached. Upgrade to Pro for unlimited generation!',
-                    errorCode: 'MONTHLY_CREDIT_LIMIT_REACHED',
-                    currentUsage: monthlyUsage.totalCredits,
-                    monthlyLimit: monthlyCreditLimit
-                };
-            }
-            
-            return {
-                isValid: true,
-                monthlyUsage,
-                remainingWords: monthlyWordLimit - monthlyUsage.totalWords,
-                remainingCredits: monthlyCreditLimit - monthlyUsage.totalCredits
-            };
-            
-        } catch (error) {
-            console.error('Error validating monthly limits:', error);
-            return {
-                isValid: false,
-                error: 'Failed to validate monthly limits',
-                errorCode: 'MONTHLY_VALIDATION_ERROR'
-            };
-        }
-    }
-
-    /**
      * Validate credit availability for the request
-     * @param {number} userId - User ID
-     * @param {number} requestedWordCount - Requested output word count
-     * @param {string} planType - User's plan type
-     * @param {string} toolType - Type of tool ('writing' or 'research')
-     * @returns {Object} Validation result
      */
     async validateCreditAvailability(userId, requestedWordCount, planType, toolType = 'writing') {
         try {
@@ -307,93 +255,38 @@ class PlanValidator {
     }
 
     /**
-     * Get user plan information
-     * @param {number} userId - User ID
-     * @returns {Object} User plan data
-     */
-    async getUserPlan(userId) {
-        try {
-            const query = `
-                SELECT 
-                    u.id,
-                    u.plan_type,
-                    u.credits,
-                    u.created_at,
-                    u.updated_at
-                FROM users u 
-                WHERE u.id = ?
-            `;
-            
-            const result = await db.query(query, [userId]);
-            
-            if (result.length === 0) {
-                return null;
-            }
-            
-            return {
-                userId: result[0].id,
-                planType: result[0].plan_type || this.planTypes.FREEMIUM,
-                credits: result[0].credits || 0,
-                createdAt: result[0].created_at,
-                updatedAt: result[0].updated_at
-            };
-            
-        } catch (error) {
-            console.error('Error getting user plan:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get monthly usage for a user (delegated to UsageTracker)
-     * @param {number} userId - User ID
-     * @param {string} month - Month in YYYY-MM format
-     * @returns {Object} Monthly usage data
-     */
-    async getMonthlyUsage(userId, month) {
-        try {
-            return await this.usageTracker.getMonthlyUsage(userId, month);
-        } catch (error) {
-            console.error('Error getting monthly usage:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get user's current credit balance
-     * @param {number} userId - User ID
-     * @returns {Object} Credit information
+     * Get user's current credit balance from SQLite
      */
     async getUserCredits(userId) {
-        try {
-            const query = `
-                SELECT credits 
-                FROM users 
-                WHERE id = ?
-            `;
+        return new Promise((resolve, reject) => {
+            const db = this.getDatabase();
             
-            const result = await db.query(query, [userId]);
-            
-            if (result.length === 0) {
-                throw new Error('User not found');
-            }
-            
-            return {
-                availableCredits: result[0].credits || 0
-            };
-            
-        } catch (error) {
-            console.error('Error getting user credits:', error);
-            throw error;
-        }
+            db.get(
+                'SELECT credits FROM users WHERE id = ?',
+                [userId],
+                (err, user) => {
+                    db.close();
+                    
+                    if (err) {
+                        reject(new Error('Database error getting user credits'));
+                        return;
+                    }
+                    
+                    if (!user) {
+                        reject(new Error('User not found'));
+                        return;
+                    }
+                    
+                    resolve({
+                        availableCredits: user.credits || 0
+                    });
+                }
+            );
+        });
     }
 
     /**
      * Estimate credits needed for content generation
-     * @param {number} wordCount - Requested word count
-     * @param {string} planType - User's plan type
-     * @param {string} toolType - Type of tool ('writing' or 'research')
-     * @returns {number} Estimated credits
      */
     estimateCreditsNeeded(wordCount, planType, toolType = 'writing') {
         // Credit ratios for different tools (purely credit-based, no plan multipliers)
@@ -418,8 +311,6 @@ class PlanValidator {
 
     /**
      * Count words in text
-     * @param {string} text - Text to count
-     * @returns {number} Word count
      */
     countWords(text) {
         if (!text || typeof text !== 'string') {
@@ -430,89 +321,33 @@ class PlanValidator {
     }
 
     /**
-     * Get plan limits for a specific plan type
-     * @param {string} planType - Plan type
-     * @returns {Object} Plan limits
-     */
-    getPlanLimits(planType) {
-        return this.limits[planType] || null;
-    }
-
-    /**
      * Record usage after successful content generation
-     * @param {number} userId - User ID
-     * @param {number} wordsGenerated - Words generated
-     * @param {number} creditsUsed - Credits consumed
-     * @param {Object} metadata - Additional metadata
-     * @returns {Promise<Object>} Updated usage statistics
      */
     async recordUsage(userId, wordsGenerated, creditsUsed, metadata = {}) {
-        try {
-            return await this.usageTracker.recordUsage(userId, wordsGenerated, creditsUsed, metadata);
-        } catch (error) {
-            console.error('Error recording usage:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get usage history for a user
-     * @param {number} userId - User ID
-     * @param {number} months - Number of months to retrieve
-     * @returns {Promise<Array>} Usage history
-     */
-    async getUserUsageHistory(userId, months = 6) {
-        try {
-            return await this.usageTracker.getUserUsageHistory(userId, months);
-        } catch (error) {
-            console.error('Error getting usage history:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get freemium limits
-     * @returns {Object} Freemium limits
-     */
-    getFreemiumLimits() {
-        return this.usageTracker.getFreemiumLimits();
-    }
-
-    /**
-     * Check if user can upgrade their plan
-     * @param {string} currentPlan - Current plan type
-     * @returns {Object} Upgrade options
-     */
-    getUpgradeOptions(currentPlan) {
-        const upgradeOptions = {
-            freemium: {
-                canUpgrade: true,
-                recommendedPlan: 'pro',
-                benefits: [
-                    'Unlimited monthly word generation',
-                    'Longer prompts (up to 1000 words)',
-                    'Priority processing',
-                    'Advanced export formats'
-                ]
-            },
-            pro: {
-                canUpgrade: true,
-                recommendedPlan: 'custom',
-                benefits: [
-                    'Custom credit rates',
-                    'Dedicated support',
-                    'API access',
-                    'Custom integrations'
-                ]
-            },
-            custom: {
-                canUpgrade: false,
-                recommendedPlan: null,
-                benefits: []
-            }
-        };
-        
-        return upgradeOptions[currentPlan] || upgradeOptions.freemium;
+        return new Promise((resolve, reject) => {
+            const db = this.getDatabase();
+            
+            db.run(
+                'INSERT INTO user_usage_tracking (user_id, word_count, credits_used, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
+                [userId, wordsGenerated, creditsUsed],
+                function(err) {
+                    db.close();
+                    
+                    if (err) {
+                        reject(new Error('Failed to record usage'));
+                        return;
+                    }
+                    
+                    resolve({
+                        success: true,
+                        usageId: this.lastID,
+                        wordsGenerated,
+                        creditsUsed,
+                        timestamp: new Date()
+                    });
+                }
+            );
+        });
     }
 }
 
