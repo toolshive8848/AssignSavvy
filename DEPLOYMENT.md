@@ -146,7 +146,7 @@ cp assignment_writer.db assignment_writer_backup_$(date +%Y%m%d).db
 Use PM2 or similar for production process management:
 ```bash
 npm install -g pm2
-pm2 start src/server.js --name "assignment-writer"
+pm2 start server.js --name "assignment-writer"
 pm2 startup
 pm2 save
 ```
