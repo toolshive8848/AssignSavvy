@@ -1,140 +1,157 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
+const admin = require('firebase-admin');
 const AtomicCreditSystem = require('../services/atomicCreditSystem');
 const router = express.Router();
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // Initialize atomic credit system
 const atomicCreditSystem = new AtomicCreditSystem();
 
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    
-    if (!token) {
-        return res.status(401).json({ error: 'Access token required' });
-    }
-
+// Middleware to verify Firebase ID token
+const authenticateToken = async (req, res, next) => {
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.user = decoded;
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ error: 'Access token required' });
+        }
+
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        req.user = decodedToken;
         next();
     } catch (error) {
+        console.error('Token verification error:', error);
         return res.status(403).json({ error: 'Invalid or expired token' });
     }
 };
 
 // Get user profile and credits
-router.get('/profile', authenticateToken, (req, res) => {
-    const userId = req.user.userId;
-    const db = req.app.locals.db;
-
-    db.get(
-        'SELECT id, name, email, credits, is_premium, subscription_end_date, created_at FROM users WHERE id = ?',
-        [userId],
-        (err, user) => {
-            if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ error: 'Database error' });
-            }
-
-            if (!user) {
-                return res.status(404).json({ error: 'User not found' });
-            }
-
-            res.json({
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                credits: user.credits,
-                isPremium: user.is_premium === 1,
-                subscriptionEndDate: user.subscription_end_date,
-                memberSince: user.created_at
-            });
+router.get('/profile', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const db = admin.firestore();
+        
+        const userDoc = await db.collection('users').doc(userId).get();
+        
+        if (!userDoc.exists) {
+            return res.status(404).json({ error: 'User not found' });
         }
-    );
+
+        const userData = userDoc.data();
+
+        res.json({
+            uid: userId,
+            name: userData.name,
+            email: userData.email,
+            plan: userData.plan || 'free',
+            credits: userData.credits || 200,
+            isPremium: userData.isPremium || false,
+            memberSince: userData.createdAt
+        });
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: 'Database error' });
+    }
 });
 
-// Get user's credit usage statistics
-router.get('/stats', authenticateToken, (req, res) => {
-    const userId = req.user.userId;
-    const db = req.app.locals.db;
-
-    // Get total assignments and credits used
-    db.all(`
-        SELECT 
-            COUNT(*) as total_assignments,
-            SUM(credits_used) as total_credits_used,
-            AVG(originality_score) as avg_originality_score
-        FROM assignments 
-        WHERE user_id = ? AND status = 'completed'
+// Get user's usage statistics from Firestore
+router.get('/stats', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const db = admin.firestore();
         
-        UNION ALL
+        // Get all-time statistics
+        const allTimeSnapshot = await db.collection('usageTracking')
+            .where('userId', '==', userId)
+            .where('type', '==', 'deduction')
+            .get();
         
-        SELECT 
-            COUNT(*) as this_month_assignments,
-            SUM(credits_used) as this_month_credits,
-            AVG(originality_score) as this_month_avg_score
-        FROM assignments 
-        WHERE user_id = ? AND status = 'completed' 
-        AND created_at >= date('now', 'start of month')
-    `, [userId, userId], (err, rows) => {
-        if (err) {
-            console.error('Database error:', err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-
-        const allTime = rows[0] || { total_assignments: 0, total_credits_used: 0, avg_originality_score: null };
-        const thisMonth = rows[1] || { this_month_assignments: 0, this_month_credits: 0, this_month_avg_score: null };
+        // Get this month's statistics
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        
+        const thisMonthSnapshot = await db.collection('usageTracking')
+            .where('userId', '==', userId)
+            .where('type', '==', 'deduction')
+            .where('timestamp', '>=', startOfMonth)
+            .get();
+        
+        // Calculate all-time stats
+        let totalAssignments = 0;
+        let totalCreditsUsed = 0;
+        let totalWordsGenerated = 0;
+        
+        allTimeSnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.toolType === 'writing') {
+                totalAssignments++;
+            }
+            totalCreditsUsed += data.creditsUsed || 0;
+            totalWordsGenerated += data.wordCount || 0;
+        });
+        
+        // Calculate this month's stats
+        let thisMonthAssignments = 0;
+        let thisMonthCredits = 0;
+        let thisMonthWords = 0;
+        
+        thisMonthSnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.toolType === 'writing') {
+                thisMonthAssignments++;
+            }
+            thisMonthCredits += data.creditsUsed || 0;
+            thisMonthWords += data.wordCount || 0;
+        });
 
         res.json({
             allTime: {
-                totalAssignments: allTime.total_assignments || 0,
-                totalCreditsUsed: allTime.total_credits_used || 0,
-                averageOriginalityScore: allTime.avg_originality_score ? Math.round(allTime.avg_originality_score * 100) / 100 : null
+                totalAssignments,
+                totalCreditsUsed,
+                totalWordsGenerated,
+                averageOriginalityScore: null // Will be calculated from content history
             },
             thisMonth: {
-                totalAssignments: thisMonth.this_month_assignments || 0,
-                creditsUsed: thisMonth.this_month_credits || 0,
-                averageOriginalityScore: thisMonth.this_month_avg_score ? Math.round(thisMonth.this_month_avg_score * 100) / 100 : null
+                totalAssignments: thisMonthAssignments,
+                creditsUsed: thisMonthCredits,
+                totalWordsGenerated: thisMonthWords,
+                averageOriginalityScore: null
             }
         });
-    });
+    } catch (error) {
+        console.error('Stats error:', error);
+        res.status(500).json({ error: 'Failed to get statistics' });
+    }
 });
 
 // Update user profile
-router.put('/profile', authenticateToken, (req, res) => {
-    const userId = req.user.userId;
-    const { name } = req.body;
-    const db = req.app.locals.db;
+router.put('/profile', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const { name } = req.body;
+        const db = admin.firestore();
 
-    if (!name || name.trim().length < 2) {
-        return res.status(400).json({ error: 'Name must be at least 2 characters long' });
-    }
-
-    db.run(
-        'UPDATE users SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [name.trim(), userId],
-        function(err) {
-            if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ error: 'Database error' });
-            }
-
-            if (this.changes === 0) {
-                return res.status(404).json({ error: 'User not found' });
-            }
-
-            res.json({ message: 'Profile updated successfully', name: name.trim() });
+        if (!name || name.trim().length < 2) {
+            return res.status(400).json({ error: 'Name must be at least 2 characters long' });
         }
-    );
+
+        await db.collection('users').doc(userId).update({
+            name: name.trim(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        res.json({ message: 'Profile updated successfully', name: name.trim() });
+    } catch (error) {
+        console.error('Profile update error:', error);
+        res.status(500).json({ error: 'Failed to update profile' });
+    }
 });
 
 // Get current credit balance using atomic system
 router.get('/credits', authenticateToken, async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user.uid;
         const creditBalance = await atomicCreditSystem.getCreditBalance(userId);
         
         res.json({
@@ -153,7 +170,7 @@ router.get('/credits', authenticateToken, async (req, res) => {
 // Deduct credits using atomic system (for admin/testing purposes)
 router.post('/deduct-credits', authenticateToken, async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user.uid;
         const { amount, toolType = 'manual', planType = 'free' } = req.body;
         
         if (!amount || amount <= 0) {
@@ -189,51 +206,48 @@ router.post('/deduct-credits', authenticateToken, async (req, res) => {
 
 // Manual credit refresh (for testing - in production this would be automated monthly)
 router.post('/refresh-credits', authenticateToken, async (req, res) => {
-    const userId = req.user.userId;
-    const db = req.app.locals.db;
+    try {
+        const userId = req.user.uid;
+        const db = admin.firestore();
 
-    db.get('SELECT is_premium, plan FROM users WHERE id = ?', [userId], (err, user) => {
-        if (err) {
-            console.error('Database error:', err);
-            return res.status(500).json({ error: 'Database error' });
-        }
-
-        if (!user) {
+        const userDoc = await db.collection('users').doc(userId).get();
+        
+        if (!userDoc.exists) {
             return res.status(404).json({ error: 'User not found' });
         }
 
+        const userData = userDoc.data();
+        const plan = userData.plan || 'free';
+
         // Determine credits based on plan
         let newCredits = 200; // Default free plan
-        if (user.is_premium === 1 || user.plan === 'pro') {
+        if (plan === 'pro') {
             newCredits = 2000;
-        } else if (user.plan === 'custom') {
+        } else if (plan === 'custom') {
             newCredits = 3300;
         }
 
-        db.run(
-            'UPDATE users SET credits = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [newCredits, userId],
-            function(err) {
-                if (err) {
-                    console.error('Database error:', err);
-                    return res.status(500).json({ error: 'Database error' });
-                }
+        await db.collection('users').doc(userId).update({
+            credits: newCredits,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
 
-                res.json({ 
-                    message: 'Credits refreshed successfully', 
-                    newCredits: newCredits,
-                    isPremium: user.is_premium === 1,
-                    plan: user.plan || 'free'
-                });
-            }
-        );
-    });
+        res.json({ 
+            message: 'Credits refreshed successfully', 
+            newCredits: newCredits,
+            isPremium: userData.isPremium || false,
+            plan: plan
+        });
+    } catch (error) {
+        console.error('Credit refresh error:', error);
+        res.status(500).json({ error: 'Failed to refresh credits' });
+    }
 });
 
 // Get transaction history using atomic system
 router.get('/transactions', authenticateToken, async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user.uid;
         const limit = parseInt(req.query.limit) || 50;
         
         if (limit > 100) {
@@ -253,80 +267,92 @@ router.get('/transactions', authenticateToken, async (req, res) => {
     }
 });
 
-// Get user notifications
-router.get('/notifications', authenticateToken, (req, res) => {
-    const userId = req.user.userId;
-    const db = req.app.locals.db;
+// Get user notifications from Firestore
+router.get('/notifications', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const db = admin.firestore();
 
-    // Get recent activity for notifications
-    db.all(`
-        SELECT 
-            'assignment' as type,
-            title as message,
-            created_at as timestamp
-        FROM assignments 
-        WHERE user_id = ? AND created_at >= datetime('now', '-7 days')
-        ORDER BY created_at DESC 
-        LIMIT 5
-    `, [userId], (err, notifications) => {
-        if (err) {
-            console.error('Database error:', err);
-            return res.status(500).json({ error: 'Database error' });
-        }
+        // Get recent activity for notifications
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-        // Format notifications
-        const formattedNotifications = notifications.map(notification => ({
-            message: `Assignment "${notification.message}" completed`,
-            timestamp: notification.timestamp,
-            type: notification.type
-        }));
+        const notificationsSnapshot = await db.collection('contentHistory')
+            .where('userId', '==', userId)
+            .where('createdAt', '>=', sevenDaysAgo)
+            .orderBy('createdAt', 'desc')
+            .limit(5)
+            .get();
+
+        const notifications = notificationsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                message: `Content "${data.title || 'Untitled'}" completed`,
+                timestamp: data.createdAt,
+                type: 'content_completion'
+            };
+        });
 
         res.json({
             success: true,
-            notifications: formattedNotifications,
-            count: formattedNotifications.length
+            notifications,
+            count: notifications.length
         });
-    });
+    } catch (error) {
+        console.error('Notifications error:', error);
+        res.status(500).json({ error: 'Failed to get notifications' });
+    }
 });
 
-// Get daily tool statistics
-router.get('/tool-stats', authenticateToken, (req, res) => {
-    const userId = req.user.userId;
-    const { date } = req.query;
-    const targetDate = date || new Date().toISOString().split('T')[0];
-    const db = req.app.locals.db;
+// Get daily tool statistics from Firestore
+router.get('/tool-stats', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const { date } = req.query;
+        const targetDate = date || new Date().toISOString().split('T')[0];
+        const db = admin.firestore();
 
-    // Get today's statistics across all tools
-    db.all(`
-        SELECT 
-            COUNT(*) as assignments_today,
-            COALESCE(SUM(word_count), 0) as words_today,
-            COALESCE(SUM(credits_used), 0) as credits_today
-        FROM assignments 
-        WHERE user_id = ? AND DATE(created_at) = ?
-    `, [userId, targetDate], (err, results) => {
-        if (err) {
-            console.error('Database error:', err);
-            return res.status(500).json({ error: 'Database error' });
-        }
+        // Get today's statistics
+        const startOfDay = new Date(targetDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        
+        const endOfDay = new Date(targetDate);
+        endOfDay.setHours(23, 59, 59, 999);
 
-        const stats = results[0] || {
-            assignments_today: 0,
-            words_today: 0,
-            credits_today: 0
-        };
+        const todaySnapshot = await db.collection('usageTracking')
+            .where('userId', '==', userId)
+            .where('type', '==', 'deduction')
+            .where('timestamp', '>=', startOfDay)
+            .where('timestamp', '<=', endOfDay)
+            .get();
+
+        let assignmentsToday = 0;
+        let wordsToday = 0;
+        let creditsToday = 0;
+
+        todaySnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.toolType === 'writing') {
+                assignmentsToday++;
+            }
+            wordsToday += data.wordCount || 0;
+            creditsToday += data.creditsUsed || 0;
+        });
 
         res.json({
             success: true,
             date: targetDate,
             stats: {
-                assignmentsToday: stats.assignments_today,
-                wordsToday: stats.words_today,
-                creditsToday: stats.credits_today,
-                timeSavedToday: Math.round(stats.words_today / 1000) // 1 hour per 1000 words
+                assignmentsToday,
+                wordsToday,
+                creditsToday,
+                timeSavedToday: Math.round(wordsToday / 1000) // 1 hour per 1000 words
             }
         });
-    });
+    } catch (error) {
+        console.error('Tool stats error:', error);
+        res.status(500).json({ error: 'Failed to get tool statistics' });
+    }
 });
 
 module.exports = router;

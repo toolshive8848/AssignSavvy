@@ -1,21 +1,20 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const admin = require('firebase-admin');
 
 /**
  * PlanValidator class handles user plan validation and restrictions
- * Uses SQLite for consistent data storage
+ * Uses Firestore for consistent data storage
  */
 class PlanValidator {
-    constructor(dbPath = null) {
-        this.dbPath = dbPath || process.env.DATABASE_PATH || path.join(__dirname, '..', 'assignment_writer.db');
+    constructor() {
+        this.db = admin.firestore();
         this.planTypes = {
-            FREEMIUM: 'freemium',
+            FREEMIUM: 'free',
             PRO: 'pro',
             CUSTOM: 'custom'
         };
         
         this.limits = {
-            freemium: {
+            free: {
                 maxPromptLength: 500, // words
                 maxOutputPerRequest: 1000, // words
             },
@@ -28,13 +27,6 @@ class PlanValidator {
                 maxOutputPerRequest: null, // unlimited (credit-based)
             }
         };
-    }
-
-    /**
-     * Get database connection
-     */
-    getDatabase() {
-        return new sqlite3.Database(this.dbPath);
     }
 
     /**
@@ -134,38 +126,30 @@ class PlanValidator {
     }
 
     /**
-     * Get user plan information from SQLite
+     * Get user plan information from Firestore
      */
     async getUserPlan(userId) {
-        return new Promise((resolve, reject) => {
-            const db = this.getDatabase();
+        try {
+            const userDoc = await this.db.collection('users').doc(userId).get();
             
-            db.get(
-                'SELECT id, credits, is_premium, created_at, updated_at FROM users WHERE id = ?',
-                [userId],
-                (err, user) => {
-                    db.close();
-                    
-                    if (err) {
-                        reject(new Error('Database error getting user plan'));
-                        return;
-                    }
-                    
-                    if (!user) {
-                        resolve(null);
-                        return;
-                    }
-                    
-                    resolve({
-                        userId: user.id,
-                        planType: user.is_premium ? 'pro' : 'freemium',
-                        credits: user.credits || 0,
-                        createdAt: user.created_at,
-                        updatedAt: user.updated_at
-                    });
-                }
-            );
-        });
+            if (!userDoc.exists) {
+                return null;
+            }
+            
+            const userData = userDoc.data();
+            
+            return {
+                userId: userData.uid || userId,
+                planType: userData.plan || 'free',
+                credits: userData.credits || 0,
+                isPremium: userData.isPremium || false,
+                createdAt: userData.createdAt,
+                updatedAt: userData.updatedAt
+            };
+        } catch (error) {
+            console.error('Error getting user plan:', error);
+            throw new Error('Failed to get user plan');
+        }
     }
 
     /**
@@ -200,7 +184,7 @@ class PlanValidator {
         
         if (maxOutputPerRequest && requestedWordCount > maxOutputPerRequest) {
             const errorMessage = planType === this.planTypes.FREEMIUM
-                ? `Freemium users can generate up to ${maxOutputPerRequest} words per request. Upgrade to Pro for unlimited generation!`
+                ? `Free users can generate up to ${maxOutputPerRequest} words per request. Upgrade to Pro for unlimited generation!`
                 : `Output word count exceeds maximum limit of ${maxOutputPerRequest} words per request.`;
                 
             return {
@@ -255,34 +239,25 @@ class PlanValidator {
     }
 
     /**
-     * Get user's current credit balance from SQLite
+     * Get user's current credit balance from Firestore
      */
     async getUserCredits(userId) {
-        return new Promise((resolve, reject) => {
-            const db = this.getDatabase();
+        try {
+            const userDoc = await this.db.collection('users').doc(userId).get();
             
-            db.get(
-                'SELECT credits FROM users WHERE id = ?',
-                [userId],
-                (err, user) => {
-                    db.close();
-                    
-                    if (err) {
-                        reject(new Error('Database error getting user credits'));
-                        return;
-                    }
-                    
-                    if (!user) {
-                        reject(new Error('User not found'));
-                        return;
-                    }
-                    
-                    resolve({
-                        availableCredits: user.credits || 0
-                    });
-                }
-            );
-        });
+            if (!userDoc.exists) {
+                throw new Error('User not found');
+            }
+            
+            const userData = userDoc.data();
+            
+            return {
+                availableCredits: userData.credits || 0
+            };
+        } catch (error) {
+            console.error('Error getting user credits:', error);
+            throw new Error('Failed to get user credits');
+        }
     }
 
     /**
@@ -323,31 +298,31 @@ class PlanValidator {
     /**
      * Record usage after successful content generation
      */
-    async recordUsage(userId, wordsGenerated, creditsUsed, metadata = {}) {
-        return new Promise((resolve, reject) => {
-            const db = this.getDatabase();
+    async recordUsage(userId, wordsGenerated, creditsUsed, toolType = 'writing', metadata = {}) {
+        try {
+            const usageRef = this.db.collection('usageTracking').doc();
             
-            db.run(
-                'INSERT INTO user_usage_tracking (user_id, word_count, credits_used, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)',
-                [userId, wordsGenerated, creditsUsed],
-                function(err) {
-                    db.close();
-                    
-                    if (err) {
-                        reject(new Error('Failed to record usage'));
-                        return;
-                    }
-                    
-                    resolve({
-                        success: true,
-                        usageId: this.lastID,
-                        wordsGenerated,
-                        creditsUsed,
-                        timestamp: new Date()
-                    });
-                }
-            );
-        });
+            await usageRef.set({
+                userId,
+                toolType,
+                wordsGenerated,
+                creditsUsed,
+                metadata,
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                type: 'usage'
+            });
+            
+            return {
+                success: true,
+                usageId: usageRef.id,
+                wordsGenerated,
+                creditsUsed,
+                timestamp: new Date()
+            };
+        } catch (error) {
+            console.error('Error recording usage:', error);
+            throw new Error('Failed to record usage');
+        }
     }
 }
 

@@ -1,180 +1,197 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+const admin = require('firebase-admin');
 const router = express.Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+/**
+ * Authentication routes using Firebase Auth
+ * Handles user registration, login, and profile management
+ */
 
 // Register new user
 router.post('/register', async (req, res) => {
-    const { name, email, password } = req.body;
-    const db = req.app.locals.db;
-
-    if (!name || !email || !password) {
-        return res.status(400).json({ error: 'Name, email, and password are required' });
-    }
-
-    if (password.length < 6) {
-        return res.status(400).json({ error: 'Password must be at least 6 characters long' });
-    }
-
     try {
-        // Check if user already exists
-        db.get('SELECT id FROM users WHERE email = ?', [email], async (err, existingUser) => {
-            if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ error: 'Database error' });
-            }
+        const { name, email, password, plan = 'free' } = req.body;
 
-            if (existingUser) {
-                return res.status(400).json({ error: 'User already exists with this email' });
-            }
+        if (!name || !email || !password) {
+            return res.status(400).json({ error: 'Name, email, and password are required' });
+        }
 
-            // Hash password
-            const saltRounds = 10;
-            const passwordHash = await bcrypt.hash(password, saltRounds);
+        if (password.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+        }
 
-            // Create user
-            db.run(
-                'INSERT INTO users (name, email, password_hash, credits) VALUES (?, ?, ?, ?)',
-                [name, email, passwordHash, 200], // Default 200 credits for new users
-                function(err) {
-                    if (err) {
-                        console.error('Database error:', err);
-                        return res.status(500).json({ error: 'Failed to create user' });
-                    }
-
-                    const userId = this.lastID;
-
-                    // Generate JWT token
-                    const token = jwt.sign(
-                        { userId: userId, email: email },
-                        JWT_SECRET,
-                        { expiresIn: JWT_EXPIRES_IN }
-                    );
-
-                    res.status(201).json({
-                        message: 'User created successfully',
-                        token: token,
-                        user: {
-                            id: userId,
-                            name: name,
-                            email: email,
-                            credits: 200,
-                            is_premium: false
-                        }
-                    });
-                }
-            );
+        // Create user in Firebase Auth
+        const userRecord = await admin.auth().createUser({
+            email,
+            password,
+            displayName: name
         });
+
+        // Determine initial credits based on plan
+        const initialCredits = {
+            free: 200,
+            pro: 2000,
+            custom: 3300
+        };
+
+        // Create user document in Firestore
+        const userDoc = {
+            uid: userRecord.uid,
+            name,
+            email,
+            plan,
+            credits: initialCredits[plan] || 200,
+            isPremium: plan !== 'free',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        await admin.firestore().collection('users').doc(userRecord.uid).set(userDoc);
+
+        // Generate custom token for client
+        const customToken = await admin.auth().createCustomToken(userRecord.uid);
+
+        res.status(201).json({
+            message: 'User created successfully',
+            token: customToken,
+            user: {
+                uid: userRecord.uid,
+                name,
+                email,
+                plan,
+                credits: userDoc.credits,
+                isPremium: userDoc.isPremium
+            }
+        });
+
     } catch (error) {
         console.error('Registration error:', error);
+        
+        if (error.code === 'auth/email-already-exists') {
+            return res.status(400).json({ error: 'User already exists with this email' });
+        }
+        
         res.status(500).json({ error: 'Registration failed' });
     }
 });
 
 // Login user
 router.post('/login', async (req, res) => {
-    const { email, password } = req.body;
-    const db = req.app.locals.db;
-
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required' });
-    }
-
     try {
-        db.get(
-            'SELECT * FROM users WHERE email = ?',
-            [email],
-            async (err, user) => {
-                if (err) {
-                    console.error('Database error:', err);
-                    return res.status(500).json({ error: 'Database error' });
-                }
+        const { email, password } = req.body;
 
-                if (!user) {
-                    return res.status(401).json({ error: 'Invalid email or password' });
-                }
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and password are required' });
+        }
 
-                // Verify password
-                const isValidPassword = await bcrypt.compare(password, user.password_hash);
-                if (!isValidPassword) {
-                    return res.status(401).json({ error: 'Invalid email or password' });
-                }
+        // Get user by email
+        const userRecord = await admin.auth().getUserByEmail(email);
+        
+        // Get user document from Firestore
+        const userDoc = await admin.firestore().collection('users').doc(userRecord.uid).get();
+        
+        if (!userDoc.exists) {
+            return res.status(404).json({ error: 'User profile not found' });
+        }
 
-                // Generate JWT token
-                const token = jwt.sign(
-                    { userId: user.id, email: user.email },
-                    JWT_SECRET,
-                    { expiresIn: JWT_EXPIRES_IN }
-                );
+        const userData = userDoc.data();
 
-                res.json({
-                    message: 'Login successful',
-                    token: token,
-                    user: {
-                        id: user.id,
-                        name: user.name,
-                        email: user.email,
-                        credits: user.credits,
-                        is_premium: user.is_premium === 1
-                    }
-                });
+        // Generate custom token for client
+        const customToken = await admin.auth().createCustomToken(userRecord.uid);
+
+        res.json({
+            message: 'Login successful',
+            token: customToken,
+            user: {
+                uid: userRecord.uid,
+                name: userData.name,
+                email: userData.email,
+                plan: userData.plan || 'free',
+                credits: userData.credits || 200,
+                isPremium: userData.isPremium || false
             }
-        );
+        });
+
     } catch (error) {
         console.error('Login error:', error);
+        
+        if (error.code === 'auth/user-not-found') {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+        
         res.status(500).json({ error: 'Login failed' });
     }
 });
 
 // Get user profile
-router.get('/profile', authenticateToken, (req, res) => {
-    const userId = req.user.userId;
-    const db = req.app.locals.db;
-
-    db.get(
-        'SELECT id, name, email, credits, is_premium, created_at FROM users WHERE id = ?',
-        [userId],
-        (err, user) => {
-            if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ error: 'Database error' });
-            }
-
-            if (!user) {
-                return res.status(404).json({ error: 'User not found' });
-            }
-
-            res.json({
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                credits: user.credits,
-                isPremium: user.is_premium === 1,
-                memberSince: user.created_at
-            });
+router.get('/profile', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        
+        const userDoc = await admin.firestore().collection('users').doc(userId).get();
+        
+        if (!userDoc.exists) {
+            return res.status(404).json({ error: 'User not found' });
         }
-    );
+
+        const userData = userDoc.data();
+
+        res.json({
+            uid: userId,
+            name: userData.name,
+            email: userData.email,
+            plan: userData.plan || 'free',
+            credits: userData.credits || 200,
+            isPremium: userData.isPremium || false,
+            memberSince: userData.createdAt
+        });
+
+    } catch (error) {
+        console.error('Profile fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch profile' });
+    }
 });
 
-// Middleware to verify JWT token
-function authenticateToken(req, res, next) {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+// Update user profile
+router.put('/profile', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const { name } = req.body;
 
-    if (!token) {
-        return res.status(401).json({ error: 'Access token required' });
-    }
-
-    jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) {
-            return res.status(403).json({ error: 'Invalid or expired token' });
+        if (!name || name.trim().length < 2) {
+            return res.status(400).json({ error: 'Name must be at least 2 characters long' });
         }
-        req.user = user;
+
+        await admin.firestore().collection('users').doc(userId).update({
+            name: name.trim(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        res.json({ message: 'Profile updated successfully', name: name.trim() });
+
+    } catch (error) {
+        console.error('Profile update error:', error);
+        res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+
+// Middleware to verify Firebase ID token
+async function authenticateToken(req, res, next) {
+    try {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ error: 'Access token required' });
+        }
+
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        req.user = decodedToken;
         next();
-    });
+    } catch (error) {
+        console.error('Token verification error:', error);
+        return res.status(403).json({ error: 'Invalid or expired token' });
+    }
 }
 
 module.exports = router;

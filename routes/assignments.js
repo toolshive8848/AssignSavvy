@@ -1,16 +1,36 @@
 const express = require('express');
-const router = express.Router();
+const admin = require('firebase-admin');
 const MultiPartGenerator = require('../services/multiPartGenerator');
 const FinalDetectionService = require('../services/finalDetection');
 const AtomicCreditSystem = require('../services/atomicCreditSystem');
 const PlanValidator = require('../services/planValidator');
-const { authenticateToken } = require('../middleware/auth');
+
+const router = express.Router();
 
 // Initialize services
 const multiPartGenerator = new MultiPartGenerator();
 const finalDetectionService = new FinalDetectionService();
 const atomicCreditSystem = new AtomicCreditSystem();
 const planValidator = new PlanValidator();
+
+// Middleware to verify Firebase ID token
+const authenticateToken = async (req, res, next) => {
+    try {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ error: 'Access token required' });
+        }
+
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        req.user = decodedToken;
+        next();
+    } catch (error) {
+        console.error('Token verification error:', error);
+        return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+};
 
 /**
  * POST /api/assignments/generate
@@ -30,7 +50,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
             qualityTier = 'standard'
         } = req.body;
         
-        const userId = req.user.userId;
+        const userId = req.user.uid;
 
         // Input validation
         if (!title || title.trim().length === 0) {
@@ -124,37 +144,33 @@ Please generate a comprehensive academic assignment that includes:
                 enableRefinement: qualityTier === 'premium'
             });
 
-            // Store assignment in database
-            const db = req.app.locals.db;
-            const assignmentId = await new Promise((resolve, reject) => {
-                db.run(
-                    `INSERT INTO assignments (
-                        user_id, title, description, word_count, citation_style, 
-                        content, originality_score, status, credits_used, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?, CURRENT_TIMESTAMP)`,
-                    [
-                        userId,
-                        title,
-                        description,
-                        result.wordCount,
-                        citationStyle,
-                        result.content,
-                        result.finalDetectionResults?.originalityScore || null,
-                        creditsNeeded
-                    ],
-                    function(err) {
-                        if (err) {
-                            reject(err);
-                        } else {
-                            resolve(this.lastID);
-                        }
-                    }
-                );
+            // Store assignment in Firestore
+            const db = admin.firestore();
+            const assignmentRef = await db.collection('assignments').add({
+                userId,
+                title,
+                description,
+                wordCount: result.wordCount,
+                citationStyle,
+                content: result.content,
+                originalityScore: result.finalDetectionResults?.originalityScore || null,
+                status: 'completed',
+                creditsUsed: creditsNeeded,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                metadata: {
+                    style,
+                    tone,
+                    subject,
+                    qualityTier,
+                    chunksGenerated: result.chunksGenerated,
+                    refinementCycles: result.refinementCycles,
+                    generationTime: result.generationTime
+                }
             });
 
             res.json({
                 success: true,
-                assignmentId,
+                assignmentId: assignmentRef.id,
                 content: result.content,
                 metadata: {
                     title,
@@ -214,99 +230,176 @@ Please generate a comprehensive academic assignment that includes:
 
 /**
  * GET /api/assignments/history
- * Get user's assignment history
+ * Get user's assignment history from Firestore
  */
-router.get('/history', authenticateToken, (req, res) => {
-    const userId = req.user.userId;
-    const db = req.app.locals.db;
-    const limit = parseInt(req.query.limit) || 20;
-    const offset = parseInt(req.query.offset) || 0;
+router.get('/history', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const db = admin.firestore();
+        const limit = parseInt(req.query.limit) || 20;
+        const offset = parseInt(req.query.offset) || 0;
 
-    db.all(
-        `SELECT id, title, description, word_count, citation_style, 
-                originality_score, status, credits_used, created_at 
-         FROM assignments 
-         WHERE user_id = ? 
-         ORDER BY created_at DESC 
-         LIMIT ? OFFSET ?`,
-        [userId, limit, offset],
-        (err, assignments) => {
-            if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ error: 'Database error' });
+        let query = db.collection('assignments')
+            .where('userId', '==', userId)
+            .orderBy('createdAt', 'desc')
+            .limit(limit);
+
+        if (offset > 0) {
+            const offsetSnapshot = await db.collection('assignments')
+                .where('userId', '==', userId)
+                .orderBy('createdAt', 'desc')
+                .limit(offset)
+                .get();
+            
+            if (!offsetSnapshot.empty) {
+                const lastDoc = offsetSnapshot.docs[offsetSnapshot.docs.length - 1];
+                query = query.startAfter(lastDoc);
             }
-
-            res.json({
-                success: true,
-                assignments,
-                pagination: {
-                    limit,
-                    offset,
-                    hasMore: assignments.length === limit
-                }
-            });
         }
-    );
+
+        const snapshot = await query.get();
+        const assignments = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                title: data.title,
+                description: data.description,
+                word_count: data.wordCount,
+                citation_style: data.citationStyle,
+                originality_score: data.originalityScore,
+                status: data.status,
+                credits_used: data.creditsUsed,
+                created_at: data.createdAt
+            };
+        });
+
+        res.json({
+            success: true,
+            assignments,
+            pagination: {
+                limit,
+                offset,
+                hasMore: assignments.length === limit
+            }
+        });
+    } catch (error) {
+        console.error('Assignment history error:', error);
+        res.status(500).json({ error: 'Failed to get assignment history' });
+    }
 });
 
 /**
  * GET /api/assignments/:id
- * Get specific assignment by ID
+ * Get specific assignment by ID from Firestore
  */
-router.get('/:id', authenticateToken, (req, res) => {
-    const userId = req.user.userId;
-    const assignmentId = req.params.id;
-    const db = req.app.locals.db;
+router.get('/:id', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const assignmentId = req.params.id;
+        const db = admin.firestore();
 
-    db.get(
-        'SELECT * FROM assignments WHERE id = ? AND user_id = ?',
-        [assignmentId, userId],
-        (err, assignment) => {
-            if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ error: 'Database error' });
-            }
+        const assignmentDoc = await db.collection('assignments').doc(assignmentId).get();
 
-            if (!assignment) {
-                return res.status(404).json({ error: 'Assignment not found' });
-            }
-
-            res.json({
-                success: true,
-                assignment
-            });
+        if (!assignmentDoc.exists) {
+            return res.status(404).json({ error: 'Assignment not found' });
         }
-    );
+
+        const assignmentData = assignmentDoc.data();
+
+        // Verify ownership
+        if (assignmentData.userId !== userId) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        res.json({
+            success: true,
+            assignment: {
+                id: assignmentDoc.id,
+                ...assignmentData
+            }
+        });
+    } catch (error) {
+        console.error('Assignment fetch error:', error);
+        res.status(500).json({ error: 'Failed to get assignment' });
+    }
 });
 
 /**
  * DELETE /api/assignments/:id
- * Delete assignment
+ * Delete assignment from Firestore
  */
-router.delete('/:id', authenticateToken, (req, res) => {
-    const userId = req.user.userId;
-    const assignmentId = req.params.id;
-    const db = req.app.locals.db;
+router.delete('/:id', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const assignmentId = req.params.id;
+        const db = admin.firestore();
 
-    db.run(
-        'DELETE FROM assignments WHERE id = ? AND user_id = ?',
-        [assignmentId, userId],
-        function(err) {
-            if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ error: 'Database error' });
-            }
+        const assignmentDoc = await db.collection('assignments').doc(assignmentId).get();
 
-            if (this.changes === 0) {
-                return res.status(404).json({ error: 'Assignment not found' });
-            }
+        if (!assignmentDoc.exists) {
+            return res.status(404).json({ error: 'Assignment not found' });
+        }
 
-            res.json({
-                success: true,
-                message: 'Assignment deleted successfully'
+        const assignmentData = assignmentDoc.data();
+
+        // Verify ownership
+        if (assignmentData.userId !== userId) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        await db.collection('assignments').doc(assignmentId).delete();
+
+        res.json({
+            success: true,
+            message: 'Assignment deleted successfully'
+        });
+    } catch (error) {
+        console.error('Assignment deletion error:', error);
+        res.status(500).json({ error: 'Failed to delete assignment' });
+    }
+});
+
+/**
+ * POST /api/assignments/save-to-history
+ * Save content to user's history in Firestore
+ */
+router.post('/save-to-history', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const { content, title, metadata = {} } = req.body;
+        const db = admin.firestore();
+
+        if (!content || !title) {
+            return res.status(400).json({
+                success: false,
+                error: 'Content and title are required'
             });
         }
-    );
+
+        const historyItem = {
+            userId,
+            title,
+            content,
+            metadata,
+            wordCount: content.trim().split(/\s+/).length,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            type: 'saved_content'
+        };
+
+        const historyRef = await db.collection('contentHistory').add(historyItem);
+
+        res.json({
+            success: true,
+            historyId: historyRef.id,
+            message: 'Content saved to history successfully'
+        });
+    } catch (error) {
+        console.error('Save to history error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to save content to history'
+        });
+    }
 });
 
 module.exports = router;

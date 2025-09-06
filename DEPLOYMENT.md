@@ -1,175 +1,273 @@
-# Assignment Writer Platform - Deployment Guide
+# AssignSavvy - Firebase/Google Cloud Deployment Guide
 
 ## Overview
-This is a full-stack academic assignment writing platform with AI-powered tools for writing, research, plagiarism detection, and prompt engineering.
+This is a full-stack academic assignment writing platform with AI-powered tools for writing, research, plagiarism detection, and prompt engineering, built for Google Cloud deployment with Firebase.
+
+## Architecture
+- **Frontend**: Static HTML/CSS/JavaScript
+- **Backend**: Node.js/Express API server
+- **Database**: Firebase Firestore
+- **Authentication**: Firebase Auth
+- **Storage**: Firebase Storage (for file uploads)
+- **Hosting**: Google Cloud Run + Firebase Hosting
+- **AI Services**: Google Gemini API + Originality.ai
 
 ## Prerequisites
+- Google Cloud Platform account
+- Firebase project
 - Node.js 18+ and npm
-- SQLite3
-- API keys for AI services (see Environment Setup)
+- API keys for external services
 
 ## Quick Start
 
-### 1. Clone and Install Dependencies
+### 1. Firebase Project Setup
 ```bash
-# Install backend dependencies
-npm install
+# Install Firebase CLI
+npm install -g firebase-tools
 
-# Install frontend dependencies (if using separate frontend)
-cd frontend && npm install
+# Login to Firebase
+firebase login
+
+# Initialize Firebase project
+firebase init
+
+# Select:
+# - Firestore
+# - Functions (for backend)
+# - Hosting (for frontend)
+# - Storage
 ```
 
 ### 2. Environment Setup
-Copy the example environment file and configure your API keys:
+Copy the example environment file and configure your keys:
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your actual API keys:
+Edit `.env` with your actual configuration:
+- **Required**: `FIREBASE_PROJECT_ID` (your Firebase project ID)
+- **Required**: `FIREBASE_SERVICE_ACCOUNT_KEY` (service account JSON)
 - **Required**: `GEMINI_API_KEY` (get from https://aistudio.google.com/app/apikey)
 - **Required**: `ORIGINALITY_AI_API_KEY` (get from https://originality.ai/api)
 - **Required**: `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY` (get from https://dashboard.stripe.com/apikeys)
-- **Required**: `STRIPE_WEBHOOK_SECRET` (get from Stripe webhook configuration)
 - **Optional**: `ZOTERO_API_KEY` (get from https://www.zotero.org/settings/keys)
 
-### 3. Database Setup
-The SQLite database will be automatically initialized on first run using `schema.sql`.
+### 3. Firestore Database Setup
+The Firestore database will be automatically initialized with the following collections:
+- `users` - User profiles and credit balances
+- `assignments` - Generated assignments
+- `researchHistory` - Research queries and results
+- `contentHistory` - Generated content history
+- `usageTracking` - Credit usage transactions
+- `detectorResults` - Content analysis results
+- `promptOptimizations` - Prompt engineering history
 
-### 4. Start the Application
+### 4. Local Development
 ```bash
-# Development mode
+# Install dependencies
+npm install
+
+# Start development server
 npm run dev
 
-# Production mode
-npm start
+# The server will start on http://localhost:5000
 ```
 
-The server will start on `http://localhost:5000` (or your configured PORT).
+### 5. Firebase Functions Deployment
+```bash
+# Deploy backend as Firebase Function
+firebase deploy --only functions
+
+# Deploy frontend to Firebase Hosting
+firebase deploy --only hosting
+```
 
 ## Features
 
-### Available Tools (All Unlocked)
-- **AI Writer**: Generate academic content with multiple AI models
-  - **Standard Generation**: Fast content generation with standard quality (available for all users)
-  - **Premium Generation**: Enhanced quality with 2-loop refinement system (Pro/Custom plans only, 2x credits)
-- **Researcher**: AI-powered research and citation generation
-- **Detector**: Plagiarism and AI content detection
-- **Prompt Engineer**: Optimize prompts for better AI responses
+### Available Tools (All Functional)
+- **AI Writer**: Generate academic content with Gemini 2.5 Pro/Flash
+  - **Standard Generation**: Fast content generation (1 credit per 3 words)
+  - **Premium Generation**: Enhanced quality with 2-loop refinement (2x credits)
+- **Researcher**: AI-powered research with Gemini 2.5 Pro (1 credit per 5 words)
+- **Detector**: Plagiarism and AI content detection with Originality.ai (50 credits per 1000 words)
+- **Prompt Engineer**: Optimize prompts with Gemini Flash (1 credit per 10 input + 1 credit per 5 output words)
 
 ### User System
-- Credit-based usage system
-- User authentication and profiles
-- Dashboard with usage analytics
-- Stripe payment integration for credit purchases and subscriptions
+- Firebase Authentication with email/password
+- Credit-based usage system stored in Firestore
+- Real-time credit tracking and atomic transactions
+- Stripe payment integration for credit purchases
 
 ## API Endpoints
 
-### Authentication
+### Authentication (Firebase Auth)
 - `POST /api/auth/register` - User registration
 - `POST /api/auth/login` - User login
 - `GET /api/auth/profile` - Get user profile
 
 ### Tools
 - `POST /api/writer/generate` - Generate content (supports `qualityTier`: 'standard' or 'premium')
-- `POST /api/writer/upload-and-generate` - Generate content from uploaded files (supports `qualityTier`)
-- `POST /api/research/search` - Research topics
-- `POST /api/detector/check` - Check for plagiarism/AI content
+- `POST /api/writer/upload-and-generate` - Generate content from uploaded files
+- `POST /api/research/query` - Research topics with depth levels
+- `POST /api/detector/analyze` - Check for plagiarism/AI content
+- `POST /api/detector/workflow` - Complete detection and improvement workflow
 - `POST /api/prompt/optimize` - Optimize prompts
 
 ### User Management
-- `GET /api/users/credits` - Get user credits
-- `POST /api/users/credits/deduct` - Deduct credits
+- `GET /api/users/credits` - Get user credit balance
+- `GET /api/users/stats` - Get usage statistics
+- `GET /api/users/transactions` - Get transaction history
 
-### Payment Processing
-- `POST /api/payments/create-payment-intent` - Create payment for credit purchase
-- `POST /api/payments/create-subscription` - Create subscription for pro plan
-- `POST /api/payments/webhook` - Handle Stripe webhook events
-- `GET /api/payments/config` - Get Stripe publishable key
-- `GET /api/payments/history/:userId` - Get user payment history
+### Content Management
+- `GET /api/assignments/history` - Get assignment history
+- `GET /api/research/history` - Get research history
+- `POST /api/assignments/save-to-history` - Save content to history
+
+## Google Cloud Deployment
+
+### 1. Cloud Run Deployment
+```bash
+# Build Docker image
+docker build -t gcr.io/[PROJECT-ID]/assignsavvy .
+
+# Push to Google Container Registry
+docker push gcr.io/[PROJECT-ID]/assignsavvy
+
+# Deploy to Cloud Run
+gcloud run deploy assignsavvy \
+  --image gcr.io/[PROJECT-ID]/assignsavvy \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated
+```
+
+### 2. Environment Variables for Cloud Run
+Set these in Cloud Run console:
+```bash
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account",...}
+GEMINI_API_KEY=your-gemini-key
+ORIGINALITY_AI_API_KEY=your-originality-key
+STRIPE_SECRET_KEY=your-stripe-key
+NODE_ENV=production
+```
+
+### 3. Firebase Hosting Setup
+```bash
+# Configure firebase.json
+{
+  "hosting": {
+    "public": "public",
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": {
+          "serviceId": "assignsavvy"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
+
+# Deploy frontend
+firebase deploy --only hosting
+```
+
+## Firestore Security Rules
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can read/write their own data
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Users can read/write their own content
+    match /assignments/{assignmentId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    match /researchHistory/{researchId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    match /contentHistory/{contentId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    match /usageTracking/{trackingId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+  }
+}
+```
 
 ## Configuration
 
-### Environment Variables
-See `.env.example` for all available configuration options:
-
-- **Server**: PORT, NODE_ENV, CORS_ORIGIN
-- **Database**: DATABASE_URL
-- **Security**: JWT_SECRET, JWT_EXPIRES_IN
-- **API Keys**: GEMINI_API_KEY, ORIGINALITY_AI_API_KEY, etc.
-- **File Uploads**: MAX_FILE_SIZE, UPLOAD_DIR
-- **Credits**: DEFAULT_FREE_CREDITS, DEFAULT_PRO_CREDITS
-- **Rate Limiting**: RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS
-
 ### Credit System
-- **Free Users**: 200 credits (configurable)
-- **Pro Users**: 2000 credits (configurable)
-- **Custom Plans**: Configurable credit rates
+- **Free Users**: 200 credits
+- **Pro Users**: 2000 credits  
+- **Custom Users**: 3300 credits
 
 ### Tool Credit Costs
-- **Writing (Standard)**: 1 credit per 3 words (available for all users)
-- **Writing (Premium)**: 2 credits per 3 words (Pro/Custom plans only, includes 2-loop refinement system)
-- **Research**: 1 credit per 5 words
-- **Detection**: 1 credit per 5 words
-- **Prompt Engineering**: 0.5 credits per word
+- **Writing (Standard)**: 1 credit per 3 words
+- **Writing (Premium)**: 2 credits per 3 words (includes 2-loop refinement)
+- **Research**: 1 credit per 5 words (with depth multipliers)
+- **Detection**: 50 credits per 1000 words
+- **Detector Generation**: 1 credit per 5 words
+- **Prompt Engineering**: 1 credit per 10 input words + 1 credit per 5 output words
 
-## Production Deployment
+## Production Deployment Checklist
 
-### 1. Environment Setup
-```bash
-# Set production environment
-export NODE_ENV=production
+### 1. Firebase Setup
+- [ ] Create Firebase project
+- [ ] Enable Firestore
+- [ ] Enable Authentication
+- [ ] Enable Storage
+- [ ] Configure security rules
 
-# Configure production database
-export DATABASE_URL=sqlite:/path/to/production/database.db
+### 2. Google Cloud Setup
+- [ ] Enable Cloud Run API
+- [ ] Enable Container Registry API
+- [ ] Set up service account with proper permissions
 
-# Set secure JWT secret
-export JWT_SECRET=your-super-secure-random-string
+### 3. Environment Configuration
+- [ ] Set all required environment variables
+- [ ] Configure Firebase service account key
+- [ ] Set up Stripe webhook endpoints
+- [ ] Configure CORS for production domain
 
-# Configure CORS for your domain
-export CORS_ORIGIN=https://yourdomain.com
-```
+### 4. Security Considerations
+- [ ] Use strong JWT secrets
+- [ ] Configure Firestore security rules
+- [ ] Enable HTTPS in production
+- [ ] Set up proper IAM roles
+- [ ] Regularly rotate API keys
 
-### 2. Security Considerations
-- Use strong JWT secrets
-- Configure CORS for your specific domain
-- Enable helmet security headers
-- Set up HTTPS in production
-- Regularly rotate API keys
-
-### 3. Database Backup
-```bash
-# Backup SQLite database
-cp assignment_writer.db assignment_writer_backup_$(date +%Y%m%d).db
-```
-
-### 4. Process Management
-Use PM2 or similar for production process management:
-```bash
-npm install -g pm2
-pm2 start server.js --name "assignment-writer"
-pm2 startup
-pm2 save
-```
-
-## Monitoring
-
-The application logs:
-- Server startup information
-- API key configuration status
-- Database connection status
-- Request logs (Morgan)
-- Error logs
-
-## Troubleshooting
-
-### Common Issues
-1. **Missing API Keys**: Check console logs for API key status
-2. **Database Errors**: Ensure SQLite3 is installed and database path is writable
-3. **CORS Issues**: Configure CORS_ORIGIN environment variable
-4. **File Upload Issues**: Check MAX_FILE_SIZE and UPLOAD_DIR settings
-
-### Health Check
-Visit `/api/health` to verify the server is running properly.
+### 5. Monitoring
+- [ ] Set up Cloud Logging
+- [ ] Configure error reporting
+- [ ] Set up uptime monitoring
+- [ ] Monitor credit usage patterns
 
 ## Support
-For issues or questions, check the application logs and ensure all required environment variables are properly configured.
+For deployment issues, check:
+1. Firebase console for authentication/database errors
+2. Cloud Run logs for backend errors
+3. Browser console for frontend errors
+4. Ensure all API keys are properly configured
+
+## Cost Optimization
+- Use Firebase Spark plan for development
+- Monitor Firestore read/write operations
+- Implement caching for frequently accessed data
+- Use Cloud Run concurrency settings appropriately

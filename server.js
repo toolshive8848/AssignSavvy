@@ -2,9 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const sqlite3 = require('sqlite3').verbose();
+const admin = require('firebase-admin');
 const path = require('path');
-const fs = require('fs');
 
 // Load environment variables
 require('dotenv').config();
@@ -13,10 +12,35 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
+// Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+    try {
+        if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+            // Production: Use service account key
+            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+            admin.initializeApp({
+                credential: admin.credential.cert(serviceAccount),
+                projectId: process.env.FIREBASE_PROJECT_ID
+            });
+        } else {
+            // Development: Use default credentials
+            admin.initializeApp({
+                projectId: process.env.FIREBASE_PROJECT_ID || 'assignsavvy-dev'
+            });
+        }
+        console.log('✅ Firebase Admin SDK initialized successfully');
+    } catch (error) {
+        console.error('❌ Firebase initialization failed:', error);
+        if (NODE_ENV === 'production') {
+            process.exit(1);
+        }
+    }
+}
+
 // CORS origins from environment or defaults
 const corsOrigins = process.env.CORS_ORIGIN 
     ? process.env.CORS_ORIGIN.split(',')
-    : ['http://localhost:5173', 'http://localhost:3000'];
+    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080'];
 
 // File size limit from environment or default
 const fileSizeLimit = process.env.MAX_FILE_SIZE || '50mb';
@@ -35,7 +59,7 @@ app.use(express.json({ limit: fileSizeLimit }));
 app.use(express.urlencoded({ extended: true, limit: fileSizeLimit }));
 
 // Serve static files
-const uploadDir = process.env.UPLOAD_DIR || '../uploads';
+const uploadDir = process.env.UPLOAD_DIR || './uploads';
 app.use('/uploads', express.static(path.join(__dirname, uploadDir)));
 
 // Serve HTML files and assets
@@ -44,33 +68,9 @@ app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.use('/styles', express.static(path.join(__dirname, 'styles')));
 app.use('/js', express.static(path.join(__dirname, 'js')));
 
-// Database connection
-const dbPath = process.env.DATABASE_URL 
-    ? process.env.DATABASE_URL.replace('sqlite:', '')
-    : path.join(__dirname, '../assignment_writer.db');
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('Error opening database:', err.message);
-    } else {
-        console.log('Connected to SQLite database');
-        
-        // Initialize database schema
-        const schemaPath = path.join(__dirname, '../schema.sql');
-        if (fs.existsSync(schemaPath)) {
-            const initSql = fs.readFileSync(schemaPath, 'utf8');
-            db.exec(initSql, (err) => {
-                if (err) {
-                    console.error('Error initializing database:', err.message);
-                } else {
-                    console.log('Database schema initialized');
-                }
-            });
-        }
-    }
-});
-
-// Make database available to routes
-app.locals.db = db;
+// Make Firebase available to routes
+app.locals.db = admin.firestore();
+app.locals.auth = admin.auth();
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -84,7 +84,11 @@ app.use('/api/writer', require('./routes/writer'));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'OK', timestamp: new Date().toISOString() });
+    res.json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        firebase: admin.apps.length > 0 ? 'connected' : 'disconnected'
+    });
 });
 
 // Error handling middleware
@@ -102,28 +106,28 @@ app.use('*', (req, res) => {
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
     console.log('Received SIGINT. Graceful shutdown...');
-    db.close((err) => {
-        if (err) {
-            console.error(err.message);
-        }
-        console.log('Database connection closed.');
-        process.exit(0);
-    });
+    try {
+        await admin.app().delete();
+        console.log('Firebase connection closed.');
+    } catch (error) {
+        console.error('Error during shutdown:', error);
+    }
+    process.exit(0);
 });
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${NODE_ENV}`);
     console.log(`CORS Origins: ${corsOrigins.join(', ')}`);
-    console.log(`Database: ${dbPath}`);
+    console.log(`Firebase Project: ${process.env.FIREBASE_PROJECT_ID || 'assignsavvy-dev'}`);
     
     // Log API key status (without exposing actual keys)
     console.log('API Keys Status:');
     console.log(`- Gemini: ${process.env.GEMINI_API_KEY ? '✓ Configured' : '✗ Missing'}`);
     console.log(`- Originality.ai: ${process.env.ORIGINALITY_AI_API_KEY ? '✓ Configured' : '✗ Missing'}`);
-    console.log(`- Zotero: ${process.env.ZOTERO_API_KEY ? '✓ Configured' : '○ Optional'}`);
+    console.log(`- Firebase: ${admin.apps.length > 0 ? '✓ Connected' : '✗ Not Connected'}`);
     
     // Critical API key validation
     const missingKeys = [];

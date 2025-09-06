@@ -1,21 +1,13 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const admin = require('firebase-admin');
 
 class ResearchService {
-  constructor(dbPath = null) {
+  constructor() {
     // TODO: Add your Gemini API key here - Get from Google AI Studio (https://makersuite.google.com/app/apikey)
     // Required for Gemini 2.5 Pro model used in research generation
     this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY); // Add your Gemini API key
     this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
-    this.dbPath = dbPath || process.env.DATABASE_PATH || path.join(__dirname, '..', 'assignment_writer.db');
-  }
-
-  /**
-   * Get database connection
-   */
-  getDatabase() {
-    return new sqlite3.Database(this.dbPath);
+    this.db = admin.firestore();
   }
 
   /**
@@ -286,119 +278,103 @@ Begin your research now:
   }
 
   /**
-   * Save research to SQLite history
+   * Save research to Firestore history
    */
   async saveResearchToHistory(userId, researchData, metadata) {
-    return new Promise((resolve, reject) => {
-      const db = this.getDatabase();
+    try {
+      const researchRef = await this.db.collection('researchHistory').add({
+        userId,
+        query: metadata.query,
+        researchType: metadata.researchType || 'general',
+        depth: metadata.depth,
+        sources: metadata.sources || [],
+        results: researchData,
+        wordCount: metadata.wordCount,
+        creditsUsed: metadata.creditsUsed || 0,
+        processingTime: metadata.processingTime,
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      });
       
-      db.run(
-        `INSERT INTO research_history (
-          user_id, query, research_type, depth, sources, results, 
-          word_count, credits_used, processing_time, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-        [
-          userId,
-          metadata.query,
-          metadata.researchType || 'general',
-          metadata.depth,
-          JSON.stringify(metadata.sources || []),
-          JSON.stringify(researchData),
-          metadata.wordCount,
-          metadata.creditsUsed || 0,
-          metadata.processingTime
-        ],
-        function(err) {
-          db.close();
-          
-          if (err) {
-            reject(new Error('Failed to save research to history'));
-            return;
-          }
-          
-          resolve(this.lastID);
-        }
-      );
-    });
+      return researchRef.id;
+    } catch (error) {
+      console.error('Error saving research to history:', error);
+      throw new Error('Failed to save research to history');
+    }
   }
 
   /**
-   * Get user's research history from SQLite
+   * Get user's research history from Firestore
    */
   async getResearchHistory(userId, limit = 20, offset = 0) {
-    return new Promise((resolve, reject) => {
-      const db = this.getDatabase();
-      
-      db.all(
-        'SELECT * FROM research_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-        [userId, limit, offset],
-        (err, rows) => {
-          db.close();
-          
-          if (err) {
-            reject(new Error('Failed to fetch research history'));
-            return;
-          }
-          
-          const history = rows.map(row => ({
-            id: row.id,
-            userId: row.user_id,
-            query: row.query,
-            researchType: row.research_type,
-            depth: row.depth,
-            sources: JSON.parse(row.sources || '[]'),
-            results: JSON.parse(row.results || '{}'),
-            wordCount: row.word_count,
-            creditsUsed: row.credits_used,
-            processingTime: row.processing_time,
-            timestamp: row.created_at
-          }));
-          
-          resolve(history);
+    try {
+      let query = this.db.collection('researchHistory')
+        .where('userId', '==', userId)
+        .orderBy('timestamp', 'desc')
+        .limit(limit);
+
+      if (offset > 0) {
+        const offsetSnapshot = await this.db.collection('researchHistory')
+          .where('userId', '==', userId)
+          .orderBy('timestamp', 'desc')
+          .limit(offset)
+          .get();
+        
+        if (!offsetSnapshot.empty) {
+          const lastDoc = offsetSnapshot.docs[offsetSnapshot.docs.length - 1];
+          query = query.startAfter(lastDoc);
         }
-      );
-    });
+      }
+
+      const snapshot = await query.get();
+      
+      return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          userId: data.userId,
+          query: data.query,
+          researchType: data.researchType,
+          depth: data.depth,
+          sources: data.sources,
+          results: data.results,
+          wordCount: data.wordCount,
+          creditsUsed: data.creditsUsed,
+          processingTime: data.processingTime,
+          timestamp: data.timestamp
+        };
+      });
+    } catch (error) {
+      console.error('Error getting research history:', error);
+      throw new Error('Failed to fetch research history');
+    }
   }
 
   /**
-   * Get specific research by ID from SQLite
+   * Get specific research by ID from Firestore
    */
   async getResearchById(researchId, userId) {
-    return new Promise((resolve, reject) => {
-      const db = this.getDatabase();
+    try {
+      const researchDoc = await this.db.collection('researchHistory').doc(researchId).get();
       
-      db.get(
-        'SELECT * FROM research_history WHERE id = ? AND user_id = ?',
-        [researchId, userId],
-        (err, row) => {
-          db.close();
-          
-          if (err) {
-            reject(new Error('Database error fetching research'));
-            return;
-          }
-          
-          if (!row) {
-            reject(new Error('Research not found'));
-            return;
-          }
-          
-          resolve({
-            id: row.id,
-            userId: row.user_id,
-            query: row.query,
-            researchType: row.research_type,
-            depth: row.depth,
-            sources: JSON.parse(row.sources || '[]'),
-            results: JSON.parse(row.results || '{}'),
-            wordCount: row.word_count,
-            creditsUsed: row.credits_used,
-            processingTime: row.processing_time,
-            timestamp: row.created_at
-          });
-        }
-      );
-    });
+      if (!researchDoc.exists) {
+        throw new Error('Research not found');
+      }
+      
+      const researchData = researchDoc.data();
+      
+      // Verify ownership
+      if (researchData.userId !== userId) {
+        throw new Error('Unauthorized access to research');
+      }
+      
+      return {
+        id: researchDoc.id,
+        ...researchData
+      };
+    } catch (error) {
+      console.error('Error getting research by ID:', error);
+      throw error;
+    }
   }
 
   /**
