@@ -989,6 +989,11 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
+      // Check authentication
+      if (!window.userSession.requireAuthentication()) {
+        return;
+      }
+      
       // Load user profile data
       loadUserProfile();
       

@@ -667,6 +667,11 @@
 
     // Initialize page
     document.addEventListener('DOMContentLoaded', function() {
+      // Check authentication
+      if (!window.userSession.requireAuthentication()) {
+        return;
+      }
+      
       initializeEventListeners();
       loadHistoryData();
     });

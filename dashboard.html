@@ -1063,11 +1063,12 @@
     function updateUserProfile(userData) {
       if (window.userSession) {
         window.userSession.updateUser({
+          uid: userData.uid,
           name: userData.name,
           email: userData.email,
           plan: userData.isPremium ? 'pro' : 'free',
           credits: userData.credits,
-          maxCredits: userData.isPremium ? 2000 : 200
+          isPremium: userData.isPremium
         });
       }
     }

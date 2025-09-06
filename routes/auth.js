@@ -100,7 +100,7 @@ router.post('/login', async (req, res) => {
         const customToken = await admin.auth().createCustomToken(userRecord.uid);
 
         res.json({
-            message: 'Login successful',
+            success: true,
             token: customToken,
             user: {
                 uid: userRecord.uid,
