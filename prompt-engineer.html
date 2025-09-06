@@ -1003,20 +1003,25 @@
       });
       
       // Global variables
-      let userCredits = currentUser.credits;
       let selectedCategory = 'general';
-      let dailyUsage = { inputWords: 0, outputWords: 0 };
-      let userPlan = currentUser.plan;
-      let dailyLimits = { inputWords: 1000, outputWords: 500 };
+      let isOptimizing = false;
       
-      // Firebase configuration (replace with your config)
-      const firebaseConfig = {
-          // Add your Firebase config here
-      };
-      
-      // Initialize Firebase (uncomment when config is added)
-      // firebase.initializeApp(firebaseConfig);
-      // const auth = firebase.auth();
+      // API helper functions
+      function getAuthToken() {
+        return localStorage.getItem('authToken') || 'mock-token';
+      }
+
+      async function makeAuthenticatedRequest(url, options = {}) {
+        const token = getAuthToken();
+        return fetch(url, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            ...options.headers
+          }
+        });
+      }
       
       // Character and word counter for prompt textarea
       const originalPrompt = document.getElementById('original-prompt');
@@ -1025,7 +1030,7 @@
       originalPrompt.addEventListener('input', function() {
         const currentLength = this.value.length;
         const wordCount = this.value.trim().split(/\s+/).filter(word => word.length > 0).length;
-        charCounter.textContent = `${wordCount} words | ${currentLength} characters`;
+        charCounter.textContent = `${wordCount} words | ${currentLength}/15000 characters`;
         
         // Validate word count limits
         validateWordCount(wordCount);
@@ -1038,9 +1043,6 @@
           }
         }, 1000);
       });
-      
-      // Load initial data
-      updateCreditsDisplay();
       
       // Modal functionality
       const historyModal = document.getElementById('history-modal');
@@ -1095,28 +1097,7 @@
       if (optimizeBtn) {
         optimizeBtn.addEventListener('click', optimizePrompt);
       }
-      
-      // Load initial data
-      updateCreditsDisplay();
     });
-    
-    // API Helper functions
-    async function makeAuthenticatedRequest(url, options = {}) {
-      const token = await getCurrentUserToken();
-      return fetch(url, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          ...options.headers
-        }
-      });
-    }
-    
-    async function getCurrentUserToken() {
-      // Return mock token for now - replace with actual Firebase auth
-      return 'mock-token';
-    }
     
     // Free prompt analysis (no authentication required)
     async function analyzeFreePrompt(prompt) {
@@ -1143,6 +1124,8 @@
     
     // Optimize prompt with authentication
     async function optimizePrompt() {
+      if (isOptimizing) return;
+      
       const promptTextarea = document.getElementById('original-prompt');
       const prompt = promptTextarea?.value?.trim();
       if (!prompt) {
@@ -1151,6 +1134,7 @@
       }
       
       try {
+        isOptimizing = true;
         showLoading('Optimizing your prompt...');
         
         const response = await makeAuthenticatedRequest('/api/prompt/optimize', {
@@ -1163,27 +1147,27 @@
         
         const data = await response.json();
         
+        if (!response.ok) {
+          throw new Error(data.error || 'Optimization failed');
+        }
+        
         if (data.success) {
           displayOptimizedPrompt(data);
-          
-          // Credits are automatically deducted by the backend
-          
-          updateCreditsDisplay();
+          updateUserCredits(data.creditsUsed);
         } else {
-          if (data.limitExceeded) {
-            showUpgradeModal(data.error || 'Daily word limit exceeded. Please upgrade to continue.');
-          } else if (data.insufficientCredits) {
-            alert('Insufficient credits: ' + data.error);
-          } else if (data.requiresUpgrade) {
-            showUpgradeModal(data.error);
-          } else {
-            alert('Optimization failed: ' + data.error);
-          }
+          throw new Error(data.error || 'Optimization failed');
         }
       } catch (error) {
         console.error('Error optimizing prompt:', error);
-        alert('Failed to optimize prompt. Please try again.');
+        if (error.message.includes('Insufficient credits')) {
+          alert('Insufficient credits. Please upgrade your plan or purchase more credits.');
+        } else if (error.message.includes('limit exceeded')) {
+          alert('Word limit exceeded. Please reduce your prompt length.');
+        } else {
+          alert(`Optimization failed: ${error.message}`);
+        }
       } finally {
+        isOptimizing = false;
         hideLoading();
       }
     }
@@ -1197,10 +1181,11 @@
         if (data.success) {
           displayPromptHistory(data.history);
         } else {
-          console.error('Failed to load history:', data.error);
+          throw new Error(data.error || 'Failed to load history');
         }
       } catch (error) {
         console.error('Error loading history:', error);
+        alert('Failed to load prompt history');
       }
     }
     
@@ -1249,7 +1234,15 @@
       // Show improvements in a modal or alert for now
       if (data.improvements && data.improvements.length > 0) {
         const improvementsText = data.improvements.join('\n• ');
-        alert(`Optimization complete!\n\nImprovements made:\n• ${improvementsText}`);
+        let message = `Optimization complete!\n\n`;
+        message += `Credits used: ${data.creditsUsed}\n\n`;
+        message += `Improvements made:\n• ${improvementsText}`;
+        
+        if (data.explanation) {
+          message += `\n\nExplanation: ${data.explanation}`;
+        }
+        
+        alert(message);
       }
     }
     
@@ -1291,6 +1284,15 @@
       return templates[buttonText] || '';
     }
     
+    // Update user credits
+    function updateUserCredits(creditsUsed) {
+      if (window.userSession && creditsUsed !== undefined) {
+        const currentUser = window.userSession.getCurrentUser();
+        const newBalance = Math.max(0, currentUser.credits - creditsUsed);
+        window.userSession.updateUser({ credits: newBalance });
+      }
+    }
+    
     // Utility functions
     function copyToClipboard(text) {
       navigator.clipboard.writeText(text).then(() => {
@@ -1312,6 +1314,12 @@
         </div>
       `;
       document.body.appendChild(loadingDiv);
+      
+      const optimizeBtn = document.querySelector('.btn-primary');
+      if (optimizeBtn) {
+        optimizeBtn.disabled = true;
+        optimizeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Optimizing...';
+      }
     }
     
     function hideLoading() {
@@ -1319,19 +1327,17 @@
       if (loadingDiv) {
         document.body.removeChild(loadingDiv);
       }
+      
+      const optimizeBtn = document.querySelector('.btn-primary');
+      if (optimizeBtn) {
+        optimizeBtn.disabled = false;
+        optimizeBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Optimize Prompt';
+      }
     }
-    
-    function showUpgradeModal(message) {
-      alert(`${message}\n\nPlease upgrade your plan to continue using this feature.`);
-    }
-    
-    // Credit-based system - no daily usage tracking needed
-    
-    // Credit-based system - no usage display needed
     
     // Validate word count against limits
     function validateWordCount(wordCount) {
-      const maxInputWords = 1000; // One-time limit for all users
+      const maxInputWords = 15000; // Maximum input limit
       
       const optimizeBtn = document.querySelector('.btn-primary');
       const warningDiv = document.getElementById('word-count-warning');
@@ -1351,17 +1357,14 @@
         
         if (optimizeBtn) optimizeBtn.disabled = true;
       } else {
-        // Calculate and show credits needed
-        const inputCredits = Math.ceil(wordCount / 20);
-        const estimatedOutputWords = Math.min(wordCount * 1.5, 1000);
-        const outputCredits = Math.ceil(estimatedOutputWords / 10);
-        const totalCredits = inputCredits + outputCredits;
+        // Calculate and show estimated credits needed
+        const estimatedCredits = Math.ceil(wordCount / 20) + Math.ceil((wordCount * 1.5) / 10);
         
-        if (totalCredits > 0) {
+        if (estimatedCredits > 0) {
           const warning = document.createElement('div');
           warning.id = 'word-count-warning';
           warning.className = 'alert alert-info mt-2';
-          warning.innerHTML = `ℹ️ This will use approximately ${totalCredits} credits (${inputCredits} for input + ${outputCredits} for output).`;
+          warning.innerHTML = `ℹ️ This will use approximately ${estimatedCredits} credits.`;
           originalPrompt.parentNode.appendChild(warning);
         }
         
@@ -1369,66 +1372,9 @@
       }
     }
     
-    // Show upgrade modal with detailed information
-    function showUpgradeModal(message) {
-      const modal = document.createElement('div');
-      modal.className = 'modal';
-      modal.innerHTML = `
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>Upgrade Required</h3>
-            <button class="btn-close" onclick="this.closest('.modal').remove()">&times;</button>
-          </div>
-          <div class="modal-body">
-            <p class="mb-4">${message}</p>
-            <div class="grid grid-cols-2 gap-4 mb-4">
-              <div class="card">
-                <h4 class="font-semibold mb-2">Free Plan</h4>
-                <ul class="text-sm text-gray space-y-1">
-                  <li>• 1,000 input words/day</li>
-                  <li>• 500 output words/day</li>
-                  <li>• Basic prompt analysis</li>
-                </ul>
-              </div>
-              <div class="card">
-                <h4 class="font-semibold mb-2">Paid Plan</h4>
-                <ul class="text-sm text-gray space-y-1">
-                  <li>• 10,000 input words/day</li>
-                  <li>• 5,000 output words/day</li>
-                  <li>• Unlimited with credits</li>
-                  <li>• Advanced features</li>
-                </ul>
-              </div>
-            </div>
-            <div class="flex gap-2">
-              <button class="btn btn-primary" onclick="window.open('/upgrade', '_blank')">Upgrade Now</button>
-              <button class="btn btn-outline" onclick="this.closest('.modal').remove()">Maybe Later</button>
-            </div>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
-    }
-
-    async function updateCreditsDisplay() {
-      try {
-        const response = await makeAuthenticatedRequest('/api/prompt/credits');
-        const data = await response.json();
-        
-        if (data.success) {
-          const creditsElement = document.querySelector('.user-credits span');
-          if (creditsElement) {
-            creditsElement.textContent = `${data.used}/${data.total} Credits`;
-          }
-        }
-      } catch (error) {
-        console.error('Error updating credits:', error);
-      }
-    }
-    
     function loadHistoryItem(itemId) {
-      // Load specific history item - placeholder for now
-      alert('Loading history item: ' + itemId);
+      // Load specific history item
+      alert('Loading history item: ' + itemId + '\n\nThis feature will be implemented to load and restore previous optimizations.');
     }
   </script>
   

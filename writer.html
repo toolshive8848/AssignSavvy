@@ -1,1103 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Writer - AssignSavvy</title>
-  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
-  <link rel="stylesheet" href="./styles/main.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-  <style>
-    :root {
-      --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-      --gradient-accent: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-      --spacing-xs: 0.5rem;
-      --spacing-sm: 1rem;
-      --spacing-md: 1.5rem;
-      --spacing-lg: 2rem;
-      --spacing-xl: 3rem;
-    }
-
-    body {
-      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-
-    .writer-container {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      min-height: calc(100vh - 80px);
-      max-height: calc(100vh - 80px);
-      padding: var(--spacing-sm);
-      max-width: 100%;
-      overflow: hidden;
-    }
-     
-    .chat-section {
-      display: flex;
-      flex-direction: column;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(20px);
-      border-radius: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-      overflow: hidden;
-      flex: 1;
-      min-height: 0;
-    }
-     
-    .content-panel {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(20px);
-      border-radius: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-      overflow: hidden;
-    }
-    
-
-    
-    .history-meta {
-      font-size: 0.75rem;
-      color: var(--text-secondary);
-      margin: 0;
-    }
-    
-    .history-actions {
-      margin-top: var(--spacing-sm);
-      display: flex;
-      justify-content: flex-end;
-    }
-    
-    .modal-large {
-      max-width: 900px;
-      width: 90vw;
-    }
-    
-    .history-filters {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: var(--spacing-lg);
-      gap: var(--spacing-md);
-    }
-    
-    .filter-group {
-      display: flex;
-      gap: var(--spacing-sm);
-    }
-    
-    .filter-btn {
-      padding: var(--spacing-sm) var(--spacing-md);
-      border: 1px solid rgba(226, 232, 240, 0.8);
-      background: rgba(255, 255, 255, 0.9);
-      border-radius: 8px;
-      font-size: 0.875rem;
-      font-weight: 500;
-      color: var(--text-secondary);
-      cursor: pointer;
-      transition: all 0.3s ease;
-    }
-    
-    .filter-btn:hover {
-      background: rgba(102, 126, 234, 0.1);
-      border-color: rgba(102, 126, 234, 0.3);
-      color: var(--text-primary);
-    }
-    
-    .filter-btn.active {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-color: transparent;
-      color: white;
-      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-    }
-    
-    .search-group {
-      flex: 1;
-      max-width: 300px;
-    }
-    
-    .history-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: var(--spacing-md);
-      max-height: 500px;
-      overflow-y: auto;
-    }
-    
-    .history-card {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(226, 232, 240, 0.8);
-      border-radius: 12px;
-      padding: var(--spacing-md);
-      transition: all 0.3s ease;
-      cursor: pointer;
-    }
-    
-    .history-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-      border-color: rgba(102, 126, 234, 0.3);
-    }
-    
-    .history-card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: var(--spacing-sm);
-    }
-    
-    .history-card-header h4 {
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin: 0;
-      line-height: 1.3;
-      flex: 1;
-    }
-    
-    .history-type {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: var(--spacing-xs) var(--spacing-sm);
-      border-radius: 6px;
-      font-size: 0.75rem;
-      font-weight: 500;
-      text-transform: capitalize;
-    }
-    
-    .history-preview {
-      font-size: 0.875rem;
-      color: var(--text-secondary);
-      line-height: 1.5;
-      margin: 0 0 var(--spacing-sm) 0;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-    
-    .history-card .history-meta {
-      display: flex;
-      gap: var(--spacing-md);
-      font-size: 0.75rem;
-      color: var(--text-secondary);
-      margin-bottom: var(--spacing-sm);
-    }
-    
-    .history-card .history-meta span {
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-xs);
-    }
-    
-    .history-card-actions {
-      display: flex;
-      gap: var(--spacing-sm);
-    }
-    
-    .chat-messages {
-      flex: 1;
-      padding: var(--spacing-lg);
-      overflow-y: auto;
-      background: transparent;
-      display: flex;
-      flex-direction: column;
-      gap: var(--spacing-md);
-    }
-    
-    .message {
-      display: flex;
-      align-items: flex-start;
-      animation: messageSlideIn 0.3s ease-out;
-    }
-    
-    @keyframes messageSlideIn {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-    
-    .message.user {
-      flex-direction: row-reverse;
-    }
-    
-    .message-avatar {
-      width: 45px;
-      height: 45px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 var(--spacing-sm);
-      font-size: 1.3rem;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-    
-    .message.user .message-avatar {
-      background: var(--gradient-accent);
-      color: white;
-    }
-    
-    .message.assistant .message-avatar {
-      background: var(--gradient-secondary);
-      color: white;
-    }
-    
-    .message-content {
-      max-width: 70%;
-      padding: var(--spacing-md) var(--spacing-lg);
-      border-radius: 20px;
-      line-height: 1.6;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      position: relative;
-    }
-    
-    .message.user .message-content {
-      background: var(--gradient-accent);
-      color: white;
-    }
-    
-    .message.assistant .message-content {
-      background: rgba(255, 255, 255, 0.9);
-      color: #2c3e50;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-    }
-    
-    .message-time {
-      font-size: 0.75rem;
-      color: #95a5a6;
-      margin-top: 4px;
-    }
-    
-    .chat-input-container {
-      padding: var(--spacing-lg);
-      background: transparent;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    .chat-input-wrapper {
-      display: flex;
-      align-items: flex-end;
-      background: rgba(255, 255, 255, 0.9);
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-radius: 25px;
-      padding: var(--spacing-xs);
-      transition: all 0.3s ease;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-      position: relative;
-    }
-    
-    .chat-input-wrapper:focus-within {
-      border-color: rgba(102, 126, 234, 0.5);
-      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
-    }
-    
-    .file-upload-btn {
-      background: none;
-      border: none;
-      color: #6c757d;
-      font-size: 1.2rem;
-      padding: var(--spacing-xs) var(--spacing-sm);
-      cursor: pointer;
-      border-radius: 50%;
-      transition: all 0.3s ease;
-    }
-    
-    .file-upload-btn:hover {
-      background: rgba(102, 126, 234, 0.1);
-      color: #667eea;
-      transform: scale(1.1);
-    }
-    
-    .chat-input {
-      flex: 1;
-      border: none;
-      background: none;
-      padding: var(--spacing-sm) var(--spacing-md);
-      font-size: 1rem;
-      resize: none;
-      outline: none;
-      max-height: 120px;
-      min-height: 20px;
-      font-family: inherit;
-    }
-    
-    .send-btn {
-      background: var(--gradient-primary);
-      border: none;
-      color: white;
-      padding: var(--spacing-sm);
-      border-radius: 50%;
-      cursor: pointer;
-      font-size: 1rem;
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-    }
-    
-    .send-btn:hover:not(:disabled) {
-      transform: scale(1.05);
-      box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
-    }
-    
-    .send-btn:disabled {
-      background: #bdc3c7;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
-    }
-    
-    /* Canvas-style content message */
-    .content-canvas {
-      background: rgba(248, 250, 252, 0.95);
-      border: 1px solid rgba(226, 232, 240, 0.8);
-      border-radius: 16px;
-      margin: var(--spacing-md) 0;
-      overflow: hidden;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-      backdrop-filter: blur(10px);
-    }
-    
-    .canvas-header {
-      background: rgba(255, 255, 255, 0.9);
-      border-bottom: 1px solid rgba(226, 232, 240, 0.5);
-      padding: var(--spacing-md);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .canvas-title {
-      font-weight: 600;
-      color: #2c3e50;
-      font-size: 1rem;
-      margin: 0;
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-sm);
-    }
-    
-    .canvas-actions {
-      display: flex;
-      gap: var(--spacing-xs);
-    }
-    
-    .canvas-btn {
-      background: rgba(255, 255, 255, 0.9);
-      border: 1px solid rgba(226, 232, 240, 0.8);
-      border-radius: 8px;
-      padding: var(--spacing-xs) var(--spacing-sm);
-      cursor: pointer;
-      color: #64748b;
-      transition: all 0.2s ease;
-      font-size: 0.875rem;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    
-    .canvas-btn:hover {
-      background: rgba(102, 126, 234, 0.1);
-      border-color: rgba(102, 126, 234, 0.3);
-      color: #667eea;
-    }
-    
-    .canvas-content {
-      padding: var(--spacing-lg);
-      background: white;
-      font-family: 'Georgia', serif;
-      line-height: 1.7;
-      color: #2c3e50;
-      max-height: 600px;
-      overflow-y: auto;
-    }
-    
-    .canvas-content.editing {
-      background: rgba(255, 255, 255, 0.95);
-      border: 2px solid rgba(102, 126, 234, 0.3);
-      outline: none;
-      resize: vertical;
-    }
-    
-    .canvas-stats {
-      background: rgba(248, 250, 252, 0.8);
-      border-top: 1px solid rgba(226, 232, 240, 0.5);
-      padding: var(--spacing-sm) var(--spacing-lg);
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.8rem;
-      color: #64748b;
-    }
-    
-    /* Notification animations */
-    @keyframes slideIn {
-      from {
-        transform: translateX(100%);
-        opacity: 0;
-      }
-      to {
-        transform: translateX(0);
-        opacity: 1;
-      }
-    }
-    
-    @keyframes slideOut {
-      from {
-        transform: translateX(0);
-        opacity: 1;
-      }
-      to {
-        transform: translateX(100%);
-        opacity: 0;
-      }
-    }
-    
-    .panel-header {
-      padding: var(--spacing-lg);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      background: rgba(255, 255, 255, 0.05);
-      backdrop-filter: blur(10px);
-    }
-    
-    .panel-header h3 {
-      margin: 0;
-      color: #2c3e50;
-      font-size: 1.3rem;
-      font-weight: 600;
-    }
-    
-    .panel-content {
-      flex: 1;
-      padding: var(--spacing-lg);
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-    }
-    
-    .editor-toolbar {
-      display: flex;
-      gap: var(--spacing-sm);
-      margin-bottom: var(--spacing-md);
-      padding-bottom: var(--spacing-md);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    .toolbar-btn {
-      background: rgba(255, 255, 255, 0.9);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      padding: var(--spacing-xs) var(--spacing-sm);
-      border-radius: 8px;
-      cursor: pointer;
-      color: #495057;
-      transition: all 0.3s ease;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-    
-    .toolbar-btn:hover {
-      background: rgba(102, 126, 234, 0.1);
-      border-color: rgba(102, 126, 234, 0.3);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
-    }
-    
-    .content-editor {
-      width: 100%;
-      height: 400px;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 12px;
-      padding: var(--spacing-lg);
-      font-family: 'Georgia', serif;
-      font-size: 1rem;
-      line-height: 1.6;
-      resize: vertical;
-      outline: none;
-      background: rgba(255, 255, 255, 0.9);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      transition: all 0.3s ease;
-    }
-    
-    .content-editor:focus {
-      border-color: rgba(102, 126, 234, 0.5);
-      box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
-    }
-    
-    .content-stats {
-      display: flex;
-      justify-content: space-between;
-      margin-top: var(--spacing-md);
-      padding-top: var(--spacing-md);
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
-      font-size: 0.85rem;
-      color: #6c757d;
-    }
-    
-    .uploaded-files {
-      margin-top: var(--spacing-md);
-    }
-    
-    .file-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: var(--spacing-xs) var(--spacing-sm);
-      background: rgba(255, 255, 255, 0.9);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 8px;
-      margin-bottom: var(--spacing-xs);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      transition: all 0.3s ease;
-    }
-    
-    .file-item:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-    
-    .file-info {
-      display: flex;
-      align-items: center;
-    }
-    
-    .file-info i {
-      margin-right: var(--spacing-xs);
-      color: #6c757d;
-    }
-    
-    .file-remove {
-      background: none;
-      border: none;
-      color: #dc3545;
-      cursor: pointer;
-      padding: var(--spacing-xs);
-      border-radius: 6px;
-      transition: all 0.3s ease;
-    }
-    
-    .file-remove:hover {
-      background: rgba(220, 53, 69, 0.1);
-      transform: scale(1.1);
-    }
-    
-    .typing-indicator {
-      display: none;
-      align-items: center;
-      margin-bottom: var(--spacing-lg);
-    }
-    
-    .typing-indicator.show {
-      display: flex;
-    }
-    
-    .typing-indicator .message-avatar {
-      background: var(--gradient-secondary);
-      color: white;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-    
-    .typing-dots {
-      background: rgba(255, 255, 255, 0.9);
-      padding: var(--spacing-sm) var(--spacing-md);
-      border-radius: 18px;
-      display: flex;
-      gap: var(--spacing-xs);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-    }
-    
-    .typing-dot {
-      width: 10px;
-      height: 10px;
-      background: linear-gradient(45deg, #667eea, #764ba2);
-      border-radius: 50%;
-      animation: typing 1.4s infinite ease-in-out;
-    }
-    
-    .typing-dot:nth-child(2) {
-      animation-delay: 0.2s;
-    }
-    
-    .typing-dot:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-    
-    @keyframes typing {
-      0%, 60%, 100% {
-        transform: translateY(0) scale(0.8);
-        opacity: 0.5;
-      }
-      30% {
-        transform: translateY(-10px) scale(1.2);
-        opacity: 1;
-      }
-    }
-    
-    .welcome-message {
-      text-align: center;
-      padding: var(--spacing-xl) var(--spacing-lg);
-      color: #6c757d;
-    }
-    
-    .welcome-message h3 {
-      margin-bottom: var(--spacing-sm);
-      color: #2c3e50;
-      font-weight: 600;
-    }
-    
-    .welcome-message p {
-      margin-bottom: var(--spacing-lg);
-      line-height: 1.6;
-    }
-    
-    .quick-prompts {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--spacing-sm);
-      justify-content: center;
-    }
-    
-    .quick-prompt {
-      background: rgba(255, 255, 255, 0.9);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      padding: var(--spacing-xs) var(--spacing-md);
-      border-radius: 20px;
-      cursor: pointer;
-      font-size: 0.9rem;
-      transition: all 0.3s ease;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      color: #495057;
-    }
-    
-    .quick-prompt:hover {
-      background: var(--gradient-primary);
-      color: white;
-      border-color: transparent;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-    }
-    
-    .quality-options {
-      display: flex;
-      gap: var(--spacing-sm);
-      margin-bottom: var(--spacing-md);
-    }
-    
-    .quality-option {
-      flex: 1;
-      padding: var(--spacing-sm);
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-radius: 12px;
-      text-align: center;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      background: rgba(255, 255, 255, 0.9);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-    
-    .quality-option.active {
-      border-color: rgba(102, 126, 234, 0.5);
-      background: rgba(102, 126, 234, 0.1);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
-    }
-    
-    .quality-option h4 {
-      margin: 0 0 var(--spacing-xs) 0;
-      color: #2c3e50;
-      font-size: 1rem;
-      font-weight: 600;
-    }
-    
-    .quality-option p {
-      margin: 0;
-      font-size: 0.8rem;
-      color: #6c757d;
-    }
-    
-    .quality-option:hover {
-      border-color: #3498db !important;
-      background: #f8f9fa;
-    }
-    
-    .quality-option input[type="radio"]:checked + div {
-      color: #3498db;
-    }
-    
-    .quality-option:has(input[type="radio"]:checked) {
-      border-color: #3498db !important;
-      background: #e3f2fd;
-    }
-    
-    /* Large Desktop Layout */
-    @media (min-width: 1400px) {
-      .writer-container {
-        max-width: 1400px;
-        margin: 0 auto;
-        gap: var(--spacing-xl);
-        padding: var(--spacing-xl);
-      }
-      
-      .chat-section {
-        min-height: 500px;
-      }
-      
-      .content-panel {
-        min-height: 500px;
-      }
-    }
-    
-    /* Tablet Layout */
-    @media (max-width: 1200px) {
-      .writer-container {
-        padding: var(--spacing-lg);
-      }
-      
-      .chat-section {
-        min-height: 400px;
-      }
-      
-      .canvas-content {
-        max-height: 450px;
-      }
-    }
-    
-    /* Mobile Layout */
-    @media (max-width: 768px) {
-      .dashboard-layout {
-        display: flex;
-        flex-direction: column;
-      }
-      
-      .dashboard-topbar {
-        padding: 0 var(--spacing-md);
-        height: 60px;
-        position: sticky;
-        top: 0;
-        z-index: 100;
-      }
-      
-      .topbar-left {
-        gap: var(--spacing-sm);
-      }
-      
-      .dashboard-sidebar {
-        position: fixed;
-        top: 60px;
-        left: 0;
-        width: 280px;
-        height: calc(100vh - 60px);
-        transform: translateX(-100%);
-        z-index: 999;
-        background: rgba(255, 255, 255, 0.98);
-        backdrop-filter: blur(20px);
-        border-right: 1px solid rgba(226, 232, 240, 0.8);
-        transition: transform 0.3s ease;
-        overflow-y: auto;
-      }
-      
-      .dashboard-sidebar.sidebar-open {
-        transform: translateX(0);
-      }
-      
-      .dashboard-content {
-        padding: 0;
-        height: calc(100vh - 60px);
-        overflow-y: auto;
-        width: 100%;
-        box-sizing: border-box;
-      }
-      
-      .writer-container {
-        padding: var(--spacing-sm);
-        margin: 0;
-        max-width: 100%;
-        min-height: calc(100vh - 60px);
-        max-height: calc(100vh - 60px);
-      }
-      
-      .chat-section {
-        flex: 1;
-        min-height: 0;
-        width: 100%;
-        box-sizing: border-box;
-      }
-      
-      .canvas-content {
-        max-height: 350px;
-        font-size: 0.95rem;
-      }
-      
-      .canvas-btn {
-        font-size: 0.8rem;
-        padding: 6px 8px;
-      }
-      
-      .chat-messages {
-        padding: var(--spacing-md);
-        height: calc(100% - 120px);
-        overflow-y: auto;
-      }
-      
-      .message-content {
-        max-width: 85%;
-        padding: var(--spacing-md);
-        font-size: 0.95rem;
-      }
-      
-      .chat-input-container {
-        padding: var(--spacing-md);
-      }
-      
-      .chat-input-wrapper {
-        border-radius: 20px;
-        padding: var(--spacing-xs);
-      }
-      
-      .chat-input {
-        font-size: 1rem;
-        padding: var(--spacing-sm) var(--spacing-md);
-      }
-      
-      .panel-header {
-        padding: var(--spacing-md);
-      }
-      
-      .panel-header h3 {
-        font-size: 1.2rem;
-      }
-      
-      .panel-content {
-        padding: var(--spacing-md);
-        height: auto;
-        overflow: visible;
-      }
-      
-      .content-editor {
-        flex: 1;
-        min-height: 200px;
-        font-size: 1rem;
-        padding: var(--spacing-md);
-        resize: none;
-        overflow-y: auto;
-      }
-      
-      .panel-content {
-        flex: 1;
-        padding: var(--spacing-md);
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-      }
-      
-      .editor-toolbar {
-        flex-wrap: wrap;
-        gap: var(--spacing-xs);
-      }
-      
-      .toolbar-btn {
-        font-size: 0.85rem;
-        padding: var(--spacing-xs) var(--spacing-sm);
-        min-height: 36px;
-      }
-      
-      .content-stats {
-        flex-direction: column;
-        gap: var(--spacing-xs);
-        text-align: center;
-      }
-      
-      .history-filters {
-        flex-direction: column;
-        align-items: stretch;
-        gap: var(--spacing-sm);
-      }
-      
-      .filter-group {
-        justify-content: center;
-        flex-wrap: wrap;
-      }
-      
-      .history-grid {
-        grid-template-columns: 1fr;
-        gap: var(--spacing-sm);
-      }
-      
-      .quality-options {
-        flex-direction: column;
-        gap: var(--spacing-xs);
-      }
-      
-      .quick-prompts {
-        gap: var(--spacing-xs);
-        flex-wrap: wrap;
-      }
-      
-      .quick-prompt {
-        font-size: 0.9rem;
-        padding: var(--spacing-sm) var(--spacing-md);
-        min-height: 40px;
-        flex: 1;
-        min-width: 120px;
-      }
-    }
-    
-    /* Small Mobile Layout */
-    @media (max-width: 480px) {
-      .dashboard-topbar {
-        padding: 0 var(--spacing-sm);
-        height: 56px;
-      }
-      
-      .dashboard-sidebar {
-        width: 100vw;
-        top: 56px;
-        height: calc(100vh - 56px);
-      }
-      
-      .dashboard-content {
-        height: calc(100vh - 56px);
-      }
-      
-      .writer-container {
-        padding: var(--spacing-sm);
-        min-height: calc(100vh - 56px);
-        max-height: calc(100vh - 56px);
-      }
-      
-      .chat-section {
-        flex: 1;
-        min-height: 0;
-      }
-      
-      .canvas-content {
-        max-height: 280px;
-        font-size: 0.9rem;
-        padding: var(--spacing-md);
-      }
-      
-      .canvas-btn {
-        font-size: 0.75rem;
-        padding: 4px 6px;
-      }
-      
-      .canvas-header {
-        padding: var(--spacing-sm) var(--spacing-md);
-      }
-      
-      .canvas-title {
-        font-size: 0.9rem;
-      }
-      
-      .message-avatar {
-        width: 36px;
-        height: 36px;
-        font-size: 1.1rem;
-        margin: 0 var(--spacing-xs);
-      }
-      
-      .message-content {
-        max-width: 90%;
-        padding: var(--spacing-sm) var(--spacing-md);
-        font-size: 0.9rem;
-        line-height: 1.4;
-      }
-      
-      .chat-messages {
-        padding: var(--spacing-sm);
-        gap: var(--spacing-sm);
-      }
-      
-      .chat-input-container {
-        padding: var(--spacing-sm);
-      }
-      
-      .chat-input {
-        font-size: 0.95rem;
-        padding: var(--spacing-sm);
-      }
-      
-      .panel-header {
-        padding: var(--spacing-sm) var(--spacing-md);
-      }
-      
-      .panel-header h3 {
-        font-size: 1.1rem;
-      }
-      
-      .panel-content {
-        padding: var(--spacing-sm);
-      }
-      
-      .content-editor {
-        flex: 1;
-        min-height: 150px;
-        resize: none;
-        overflow-y: auto;
-        font-size: 0.95rem;
-        padding: var(--spacing-sm);
-      }
-      
-      .editor-toolbar {
-        gap: 4px;
-        margin-bottom: var(--spacing-sm);
-      }
-      
-      .toolbar-btn {
-        font-size: 0.8rem;
-        padding: 6px 8px;
-        min-height: 32px;
-      }
-      
-      .content-stats {
-        font-size: 0.85rem;
-        gap: 4px;
-      }
-      
-      .quick-prompt {
-        font-size: 0.85rem;
-        padding: var(--spacing-xs) var(--spacing-sm);
-        min-height: 36px;
-        min-width: 100px;
-      }
-      
-      .filter-btn {
-        font-size: 0.8rem;
-        padding: var(--spacing-xs) var(--spacing-sm);
-      }
-      
-      .history-card {
-        padding: var(--spacing-sm);
-      }
-      
-      .file-upload-btn, .send-btn {
-         padding: var(--spacing-xs);
-         font-size: 1rem;
-       }
-    }
-      
-      .content-actions .btn {
-        min-height: 48px;
-        font-size: 1rem;
-      }
-    }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Writer - AssignSavvy</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
+  <link rel="stylesheet" href="./styles/main.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
   <div class="dashboard-layout">
@@ -1111,7 +20,7 @@
           📚 AssignSavvy
         </div>
       </div>
-      <div class="topbar-title">Writer</div>
+      <div class="topbar-title">AI Writer</div>
       <div class="topbar-actions">
         <button class="notification-btn" id="notification-btn">
           <i class="fas fa-bell"></i>
@@ -1166,7 +75,7 @@
         </li>
       </ul>
       
-      <!-- User Account Info - Bottom Corner -->
+      <!-- User Account Info -->
       <div class="user-account-info">
         <div class="user-profile-card" id="user-profile-card" style="cursor: pointer;">
           <div class="user-avatar">
@@ -1184,149 +93,205 @@
       </div>
     </div>
     
-    <!-- Main Content Area -->
+    <!-- Main Content -->
     <div class="dashboard-content">
-      <!-- Compact Header Section -->
-      <div class="section-header" style="display: flex; align-items: center; padding: 0.5rem 1rem; margin-bottom: 0.5rem;">
-        <button class="btn btn-outline" id="open-history-btn" onclick="openHistoryModal()" style="padding: 0.5rem; border-radius: 8px; background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(255, 255, 255, 0.3); backdrop-filter: blur(10px);" title="History">
-          <i class="fas fa-history"></i>
-        </button>
+      <!-- Header -->
+      <div class="section-header">
+        <h2>AI Writer</h2>
+        <div class="header-actions">
+          <button class="btn btn-outline" id="upload-files-btn">
+            <i class="fas fa-upload"></i> Upload Files
+          </button>
+          <button class="btn btn-outline" id="open-history-btn">
+            <i class="fas fa-history"></i> History
+          </button>
+        </div>
       </div>
       
-      <div class="writer-container">
-        
-        <!-- Chat Section -->
-        <div class="chat-section">
-          <div class="chat-messages" id="chat-messages">
-            <div class="welcome-message">
-               <p>Welcome to AI Writer!</p>
-               <p>I'm here to help you create amazing content. What would you like to write today?</p>
-              </div>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Input Section -->
+        <div class="lg:col-span-2">
+          <div class="card">
+            <h3 class="mb-4">Content Generation</h3>
             
-            <!-- Typing indicator -->
-            <div class="typing-indicator" id="typing-indicator">
-              <div class="message-avatar">
-                <i class="fas fa-robot"></i>
-              </div>
-              <div class="typing-dots">
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
+            <!-- Content Type Selection -->
+            <div class="form-group mb-4">
+              <label>Content Type</label>
+              <div class="flex gap-2 mb-2">
+                <button class="btn btn-outline btn-sm active" data-type="general">General Content</button>
+                <button class="btn btn-outline btn-sm" data-type="assignment">Assignment</button>
               </div>
             </div>
-          </div>
-          
-          <div class="chat-input-container">
-            <div class="uploaded-files" id="uploaded-files"></div>
             
-            <div class="chat-input-wrapper">
-              <button class="file-upload-btn" onclick="document.getElementById('file-input').click()" title="Upload files">
-                <i class="fas fa-plus"></i>
-              </button>
-              <textarea 
-                id="chat-input" 
-                class="chat-input" 
-                placeholder="Type your writing request here... (e.g., 'Write a blog post about sustainable living')"
-                rows="1"
-              ></textarea>
-              <!-- Quality Tier Selection -->
-              <div class="quality-tier-selection" style="display: flex; align-items: center; gap: 8px; margin: 0 8px;">
-                <button class="quality-filter-btn" onclick="toggleQualityOptions()" title="Generation Quality" style="padding: var(--spacing-sm); border: 1px solid rgba(255, 255, 255, 0.3); background: rgba(255, 255, 255, 0.9); border-radius: 50%; cursor: pointer; backdrop-filter: blur(10px); font-size: 1rem; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);">
-                  <i class="fas fa-filter"></i>
+            <!-- Assignment Title (hidden by default) -->
+            <div class="form-group mb-4" id="assignment-title-group" style="display: none;">
+              <label for="assignment-title">Assignment Title</label>
+              <input type="text" id="assignment-title" class="form-input" placeholder="Enter assignment title...">
+            </div>
+            
+            <!-- Main Prompt -->
+            <div class="form-group mb-4">
+              <label for="content-prompt">Content Prompt</label>
+              <textarea id="content-prompt" class="form-input" rows="8" placeholder="Describe what you want to write about..."></textarea>
+              <div class="text-right text-sm text-gray mt-1">0 words</div>
+            </div>
+            
+            <!-- Style and Tone -->
+            <div class="grid grid-cols-2 gap-4 mb-4">
+              <div class="form-group">
+                <label for="writing-style">Writing Style</label>
+                <select id="writing-style" class="form-input">
+                  <option value="Academic">Academic</option>
+                  <option value="Business">Business</option>
+                  <option value="Creative">Creative</option>
+                  <option value="Casual">Casual</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="writing-tone">Writing Tone</label>
+                <select id="writing-tone" class="form-input">
+                  <option value="Formal">Formal</option>
+                  <option value="Casual">Casual</option>
+                  <option value="Persuasive">Persuasive</option>
+                  <option value="Informative">Informative</option>
+                </select>
+              </div>
+            </div>
+            
+            <!-- Word Count and Quality -->
+            <div class="grid grid-cols-2 gap-4 mb-4">
+              <div class="form-group">
+                <label for="word-count">Target Word Count</label>
+                <input type="number" id="word-count" class="form-input" value="500" min="100" max="2000">
+              </div>
+              <div class="form-group">
+                <label for="quality-tier">Quality Tier</label>
+                <select id="quality-tier" class="form-input">
+                  <option value="standard">Standard (1x credits)</option>
+                  <option value="premium">Premium (2x credits)</option>
+                </select>
+              </div>
+            </div>
+            
+            <!-- Citation Options (for assignments) -->
+            <div id="citation-options" style="display: none;">
+              <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="form-group">
+                  <label for="citation-style">Citation Style</label>
+                  <select id="citation-style" class="form-input">
+                    <option value="APA">APA</option>
+                    <option value="MLA">MLA</option>
+                    <option value="Chicago">Chicago</option>
+                    <option value="Harvard">Harvard</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="checkbox-container">
+                    <input type="checkbox" id="require-citations" checked>
+                    <span class="checkmark"></span>
+                    Include Citations
+                  </label>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Additional Instructions -->
+            <div class="form-group mb-6">
+              <label for="additional-instructions">Additional Instructions (Optional)</label>
+              <textarea id="additional-instructions" class="form-input" rows="3" placeholder="Any specific requirements or instructions..."></textarea>
+            </div>
+            
+            <button class="btn btn-primary w-full" id="generate-btn">
+              <i class="fas fa-magic"></i> Generate Content
+            </button>
+          </div>
+        </div>
+        
+        <!-- Output Section -->
+        <div>
+          <div class="card">
+            <div class="flex justify-between items-center mb-4">
+              <h3>Generated Content</h3>
+              <div class="flex gap-2" id="output-actions" style="display: none;">
+                <button class="btn btn-icon" id="copy-btn" title="Copy to clipboard">
+                  <i class="fas fa-copy"></i>
                 </button>
-                <div class="quality-options-dropdown" id="quality-options" style="display: none; position: absolute; bottom: 100%; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 12px; padding: 12px; box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15); z-index: 1000; min-width: 320px;">
-                  <!-- Content Type Selection -->
-                  <div style="font-size: 0.85rem; color: #6c757d; margin-bottom: 8px; font-weight: 500;">
-                    <i class="fas fa-file-alt"></i> Content Type:
+                <button class="btn btn-icon" id="download-btn" title="Download">
+                  <i class="fas fa-download"></i>
+                </button>
+                <button class="btn btn-icon" id="save-btn" title="Save to history">
+                  <i class="fas fa-save"></i>
+                </button>
+              </div>
+            </div>
+            
+            <!-- Initial State -->
+            <div id="no-content" class="text-center py-12">
+              <i class="fas fa-pen-fancy text-4xl text-gray mb-4"></i>
+              <h4>Ready to Write</h4>
+              <p class="text-gray">Enter your prompt to generate content</p>
+            </div>
+            
+            <!-- Loading State -->
+            <div id="loading-content" style="display: none;" class="text-center py-12">
+              <div class="spinner mb-4"></div>
+              <h4>Generating Content...</h4>
+              <p class="text-gray" id="loading-message">Processing your request</p>
+            </div>
+            
+            <!-- Output State -->
+            <div id="content-output" style="display: none;">
+              <textarea id="generated-content" class="form-input" rows="20" readonly></textarea>
+              <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+                <h5 class="mb-2">Generation Stats</h5>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span class="font-medium">Word Count:</span>
+                    <span id="output-word-count">0</span>
                   </div>
-                  <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">
-                    <label class="content-type-option" style="display: flex; align-items: center; cursor: pointer; padding: 6px 10px; border: 2px solid #e9ecef; border-radius: 6px; transition: all 0.3s ease;">
-                      <input type="radio" name="contentType" value="general" checked="checked" style="margin-right: 8px;" onchange="toggleAssignmentOptions()" />
-                      <div>
-                        <div style="font-weight: 500; color: #2c3e50; font-size: 0.85rem;">General Content</div>
-                        <div style="font-size: 0.7rem; color: #6c757d;">Essays, articles, blog posts</div>
-                      </div>
-                    </label>
-                    <label class="content-type-option" style="display: flex; align-items: center; cursor: pointer; padding: 6px 10px; border: 2px solid #e9ecef; border-radius: 6px; transition: all 0.3s ease;">
-                      <input type="radio" name="contentType" value="assignment" style="margin-right: 8px;" onchange="toggleAssignmentOptions()" />
-                      <div>
-                        <div style="font-weight: 500; color: #2c3e50; font-size: 0.85rem;">Academic Assignment</div>
-                        <div style="font-size: 0.7rem; color: #6c757d;">Structured academic papers with citations</div>
-                      </div>
-                    </label>
+                  <div>
+                    <span class="font-medium">Credits Used:</span>
+                    <span id="credits-used">0</span>
                   </div>
-                  
-                  <!-- Assignment Options (hidden by default) -->
-                  <div id="assignment-options" style="display: none; margin-bottom: 12px; padding: 8px; background: rgba(102, 126, 234, 0.05); border-radius: 8px;">
-                    <div style="font-size: 0.8rem; color: #6c757d; margin-bottom: 6px; font-weight: 500;">
-                      <i class="fas fa-graduation-cap"></i> Assignment Details:
-                    </div>
-                    <input type="text" id="assignment-title" placeholder="Assignment title (required)" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.8rem; margin-bottom: 6px; box-sizing: border-box;" />
-                    <select id="citation-style" style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.8rem; box-sizing: border-box;">
-                      <option value="APA">APA Citation Style</option>
-                      <option value="MLA">MLA Citation Style</option>
-                      <option value="Chicago">Chicago Citation Style</option>
-                    </select>
+                  <div>
+                    <span class="font-medium">Generation Time:</span>
+                    <span id="generation-time">0s</span>
                   </div>
-                  
-                  <!-- Quality Selection -->
-                  <div style="font-size: 0.85rem; color: #6c757d; margin-bottom: 8px; font-weight: 500;">
-                    <i class="fas fa-star"></i> Generation Quality:
-                  </div>
-                  <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <label class="quality-option" style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; border: 2px solid #e9ecef; border-radius: 8px; transition: all 0.3s ease;">
-                      <input type="radio" name="qualityTier" value="standard" checked="checked" style="margin-right: 8px;" />
-                      <div>
-                        <div style="font-weight: 500; color: #2c3e50; font-size: 0.9rem;">Standard</div>
-                        <div style="font-size: 0.75rem; color: #6c757d;">1 credit per 3 words • Fast generation</div>
-                      </div>
-                    </label>
-                    <label class="quality-option" style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; border: 2px solid #e9ecef; border-radius: 8px; transition: all 0.3s ease;">
-                      <input type="radio" name="qualityTier" value="premium" style="margin-right: 8px;" />
-                      <div>
-                        <div style="font-weight: 500; color: #2c3e50; font-size: 0.9rem;">Premium</div>
-                        <div style="font-size: 0.75rem; color: #6c757d;">2 credits per 3 words • Enhanced quality</div>
-                      </div>
-                    </label>
+                  <div>
+                    <span class="font-medium">Quality Tier:</span>
+                    <span id="used-quality-tier">Standard</span>
                   </div>
                 </div>
               </div>
-              <button class="send-btn" id="send-btn" onclick="sendMessage()" disabled="disabled">
-                <i class="fas fa-paper-plane"></i>
-              </button>
             </div>
-            <input type="file" id="file-input" multiple="multiple" accept=".pdf,.docx,.txt" style="display: none;" />
           </div>
         </div>
-        
-        <!-- Content will appear as canvas messages in the chat -->
       </div>
     </div>
-
   </div>
   
-  <!-- History Modal -->
-  <div id="history-modal" class="modal" style="display: none;">
-    <div class="modal-content modal-large">
+  <!-- File Upload Modal -->
+  <div id="upload-modal" class="modal" style="display: none;">
+    <div class="modal-content">
       <div class="modal-header">
-        <h3><i class="fas fa-history"></i> Project History</h3>
-        <button id="close-history-modal" class="btn-close">×</button>
+        <h3>Upload Files</h3>
+        <button id="close-upload-modal" class="btn-close">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="history-filters">
-          <div class="filter-group">
-            <button class="filter-btn active" data-filter="all">All</button>
-            <button class="filter-btn" data-filter="essay">Essays</button>
-            <button class="filter-btn" data-filter="research">Research</button>
-            <button class="filter-btn" data-filter="report">Reports</button>
-          </div>
-          <div class="search-group">
-            <input type="text" class="form-input" placeholder="Search projects..." id="history-search" />
-          </div>
+        <div class="upload-area" id="upload-area">
+          <i class="fas fa-cloud-upload-alt text-4xl text-gray mb-4"></i>
+          <p class="mb-2">Drag and drop files here or click to browse</p>
+          <p class="text-sm text-gray mb-4">Supported: PDF, DOCX, TXT (Max 5 files, 10MB each)</p>
+          <input type="file" id="file-input" multiple accept=".pdf,.docx,.txt" style="display: none;">
+          <button class="btn btn-outline" onclick="document.getElementById('file-input').click()">
+            Choose Files
+          </button>
         </div>
-        
-        <div class="history-grid" id="history-grid">
-          <!-- History items will be loaded here -->
+        <div id="file-list" class="mt-4" style="display: none;"></div>
+        <div class="mt-4">
+          <button class="btn btn-primary w-full" id="process-files-btn" disabled>
+            <i class="fas fa-cogs"></i> Process Files & Generate
+          </button>
         </div>
       </div>
     </div>
@@ -1337,7 +302,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h3>User Profile</h3>
-        <button id="close-profile-modal" class="btn-close">×</button>
+        <button id="close-profile-modal" class="btn-close">&times;</button>
       </div>
       <div class="modal-body">
         <div class="profile-section">
@@ -1364,124 +329,420 @@
       </div>
     </div>
   </div>
-  
-  <!-- User Session Manager -->
-  <script src="js/userSession.js"></script>
-  
+
+  <script src="./js/userSession.js"></script>
   <script>
-    // Load user profile data
-    function loadUserProfile() {
-      // Now handled by UserSessionManager
-      window.userSession.updateAllDisplays();
+    // Global variables
+    let selectedFiles = [];
+    let currentContentType = 'general';
+    let isGenerating = false;
+
+    // API helper functions
+    function getAuthToken() {
+      return localStorage.getItem('authToken') || 'mock-token';
     }
 
-    // Get current user data
-    function getCurrentUser() {
-      return window.userSession.getCurrentUser();
+    async function makeAuthenticatedRequest(url, options = {}) {
+      const token = getAuthToken();
+      return fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          ...options.headers
+        }
+      });
     }
 
-    let uploadedFiles = [];
-    let messageHistory = [];
-    
-    // Initialize
+    // Initialize page
     document.addEventListener('DOMContentLoaded', function() {
-      // Load user profile data
-      loadUserProfile();
-      
-      // User profile modal functionality
-      const userProfileCard = document.getElementById('user-profile-card');
-      const userProfileModal = document.getElementById('user-profile-modal');
-      const closeProfileModal = document.getElementById('close-profile-modal');
-      
-      userProfileCard.addEventListener('click', function() {
-        userProfileModal.style.display = 'flex';
-      });
-      
-      closeProfileModal.addEventListener('click', function() {
-        userProfileModal.style.display = 'none';
-      });
-      
-      window.addEventListener('click', function(event) {
-        if (event.target === userProfileModal) {
-          userProfileModal.style.display = 'none';
-        }
-      });
-      
-      // History modal functionality
-      const historyModal = document.getElementById('history-modal');
-      const closeHistoryModal = document.getElementById('close-history-modal');
-      
-      if (closeHistoryModal) {
-        closeHistoryModal.addEventListener('click', function() {
-          historyModal.style.display = 'none';
+      initializeEventListeners();
+      updateWordCount();
+    });
+
+    function initializeEventListeners() {
+      // Content type selection
+      document.querySelectorAll('[data-type]').forEach(btn => {
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('[data-type]').forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          currentContentType = this.dataset.type;
+          toggleAssignmentFields();
         });
-      }
-      
-      window.addEventListener('click', function(event) {
-        if (event.target === historyModal) {
-          historyModal.style.display = 'none';
-        }
       });
-      
-      // History filter functionality
-      document.addEventListener('click', function(event) {
-        if (event.target.classList.contains('filter-btn')) {
-          document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-          event.target.classList.add('active');
-          
-          const filter = event.target.dataset.filter;
-          const historyCards = document.querySelectorAll('.history-card');
-          
-          historyCards.forEach(card => {
-            if (filter === 'all' || card.dataset.type === filter) {
-              card.style.display = 'block';
-            } else {
-              card.style.display = 'none';
-            }
-          });
-        }
+
+      // Word count tracking
+      document.getElementById('content-prompt').addEventListener('input', updateWordCount);
+
+      // Generate button
+      document.getElementById('generate-btn').addEventListener('click', generateContent);
+
+      // File upload functionality
+      document.getElementById('upload-files-btn').addEventListener('click', () => {
+        document.getElementById('upload-modal').style.display = 'flex';
       });
-      
-      // History search functionality
-      const historySearch = document.getElementById('history-search');
-      if (historySearch) {
-        historySearch.addEventListener('input', function() {
-          const searchTerm = this.value.toLowerCase();
-          const historyCards = document.querySelectorAll('.history-card');
-          
-          historyCards.forEach(card => {
-            const title = card.querySelector('h4').textContent.toLowerCase();
-            const preview = card.querySelector('.history-preview').textContent.toLowerCase();
-            
-            if (title.includes(searchTerm) || preview.includes(searchTerm)) {
-              card.style.display = 'block';
-            } else {
-              card.style.display = 'none';
-            }
-          });
-        });
-      }
-      const chatInput = document.getElementById('chat-input');
-      const sendBtn = document.getElementById('send-btn');
+
+      document.getElementById('close-upload-modal').addEventListener('click', () => {
+        document.getElementById('upload-modal').style.display = 'none';
+      });
+
+      // File input handling
       const fileInput = document.getElementById('file-input');
-      const sidebarToggle = document.getElementById('sidebar-toggle');
+      fileInput.addEventListener('change', handleFileSelection);
+
+      // Drag and drop
+      const uploadArea = document.getElementById('upload-area');
+      uploadArea.addEventListener('dragover', handleDragOver);
+      uploadArea.addEventListener('drop', handleFileDrop);
+
+      // Process files button
+      document.getElementById('process-files-btn').addEventListener('click', processFilesAndGenerate);
+
+      // Output actions
+      document.getElementById('copy-btn').addEventListener('click', copyToClipboard);
+      document.getElementById('download-btn').addEventListener('click', downloadContent);
+      document.getElementById('save-btn').addEventListener('click', saveToHistory);
+
+      // Sidebar functionality
+      initializeSidebar();
+    }
+
+    function toggleAssignmentFields() {
+      const assignmentFields = document.getElementById('assignment-title-group');
+      const citationOptions = document.getElementById('citation-options');
       
-      // Sidebar toggle functionality
+      if (currentContentType === 'assignment') {
+        assignmentFields.style.display = 'block';
+        citationOptions.style.display = 'block';
+      } else {
+        assignmentFields.style.display = 'none';
+        citationOptions.style.display = 'none';
+      }
+    }
+
+    function updateWordCount() {
+      const prompt = document.getElementById('content-prompt').value;
+      const wordCount = prompt.trim() ? prompt.trim().split(/\s+/).length : 0;
+      document.querySelector('.text-right').textContent = `${wordCount} words`;
+    }
+
+    async function generateContent() {
+      if (isGenerating) return;
+
+      const prompt = document.getElementById('content-prompt').value.trim();
+      const wordCount = parseInt(document.getElementById('word-count').value);
+      const style = document.getElementById('writing-style').value;
+      const tone = document.getElementById('writing-tone').value;
+      const qualityTier = document.getElementById('quality-tier').value;
+      const additionalInstructions = document.getElementById('additional-instructions').value.trim();
+
+      if (!prompt) {
+        alert('Please enter a content prompt');
+        return;
+      }
+
+      if (wordCount < 100 || wordCount > 2000) {
+        alert('Word count must be between 100 and 2000');
+        return;
+      }
+
+      try {
+        isGenerating = true;
+        showLoading('Generating your content...');
+
+        const requestData = {
+          prompt,
+          style,
+          tone,
+          wordCount,
+          qualityTier,
+          additionalInstructions
+        };
+
+        // Add assignment-specific fields
+        if (currentContentType === 'assignment') {
+          const assignmentTitle = document.getElementById('assignment-title').value.trim();
+          if (!assignmentTitle) {
+            alert('Please enter an assignment title');
+            return;
+          }
+          
+          requestData.contentType = 'assignment';
+          requestData.assignmentTitle = assignmentTitle;
+          requestData.citationStyle = document.getElementById('citation-style').value;
+          requestData.requiresCitations = document.getElementById('require-citations').checked;
+        }
+
+        const response = await makeAuthenticatedRequest('/api/writer/generate', {
+          method: 'POST',
+          body: JSON.stringify(requestData)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Generation failed');
+        }
+
+        if (result.success) {
+          displayGeneratedContent(result);
+          updateUserCredits(result.metadata.remainingCredits);
+        } else {
+          throw new Error(result.error || 'Generation failed');
+        }
+
+      } catch (error) {
+        console.error('Generation error:', error);
+        showError(error.message);
+      } finally {
+        isGenerating = false;
+        hideLoading();
+      }
+    }
+
+    function displayGeneratedContent(result) {
+      document.getElementById('no-content').style.display = 'none';
+      document.getElementById('content-output').style.display = 'block';
+      document.getElementById('output-actions').style.display = 'flex';
+
+      document.getElementById('generated-content').value = result.content;
+      document.getElementById('output-word-count').textContent = result.metadata.wordCount || 0;
+      document.getElementById('credits-used').textContent = result.metadata.creditsUsed || 0;
+      document.getElementById('generation-time').textContent = `${(result.metadata.generationTime / 1000).toFixed(1)}s`;
+      document.getElementById('used-quality-tier').textContent = result.metadata.qualityTier === 'premium' ? 'Premium' : 'Standard';
+    }
+
+    function showLoading(message) {
+      document.getElementById('no-content').style.display = 'none';
+      document.getElementById('content-output').style.display = 'none';
+      document.getElementById('loading-content').style.display = 'block';
+      document.getElementById('loading-message').textContent = message;
+      document.getElementById('generate-btn').disabled = true;
+      document.getElementById('generate-btn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    }
+
+    function hideLoading() {
+      document.getElementById('loading-content').style.display = 'none';
+      document.getElementById('generate-btn').disabled = false;
+      document.getElementById('generate-btn').innerHTML = '<i class="fas fa-magic"></i> Generate Content';
+    }
+
+    function showError(message) {
+      document.getElementById('loading-content').style.display = 'none';
+      document.getElementById('no-content').style.display = 'block';
+      alert(`Error: ${message}`);
+    }
+
+    // File handling functions
+    function handleFileSelection(event) {
+      const files = Array.from(event.target.files);
+      selectedFiles = files;
+      displaySelectedFiles();
+    }
+
+    function handleDragOver(event) {
+      event.preventDefault();
+      event.currentTarget.classList.add('drag-over');
+    }
+
+    function handleFileDrop(event) {
+      event.preventDefault();
+      event.currentTarget.classList.remove('drag-over');
+      const files = Array.from(event.dataTransfer.files);
+      selectedFiles = files;
+      document.getElementById('file-input').files = event.dataTransfer.files;
+      displaySelectedFiles();
+    }
+
+    function displaySelectedFiles() {
+      const fileList = document.getElementById('file-list');
+      const processBtn = document.getElementById('process-files-btn');
+      
+      if (selectedFiles.length === 0) {
+        fileList.style.display = 'none';
+        processBtn.disabled = true;
+        return;
+      }
+
+      fileList.style.display = 'block';
+      fileList.innerHTML = '<h5>Selected Files:</h5>';
+      
+      selectedFiles.forEach((file, index) => {
+        const fileItem = document.createElement('div');
+        fileItem.className = 'file-item';
+        fileItem.innerHTML = `
+          <div class="flex justify-between items-center p-2 border rounded">
+            <div>
+              <span class="font-medium">${file.name}</span>
+              <span class="text-sm text-gray">(${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+            </div>
+            <button class="btn btn-sm btn-outline" onclick="removeFile(${index})">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        `;
+        fileList.appendChild(fileItem);
+      });
+
+      processBtn.disabled = false;
+    }
+
+    function removeFile(index) {
+      selectedFiles.splice(index, 1);
+      displaySelectedFiles();
+    }
+
+    async function processFilesAndGenerate() {
+      if (selectedFiles.length === 0) {
+        alert('Please select files to process');
+        return;
+      }
+
+      try {
+        showLoading('Processing files and generating content...');
+
+        const formData = new FormData();
+        selectedFiles.forEach(file => {
+          formData.append('files', file);
+        });
+
+        // Add generation parameters
+        formData.append('additionalPrompt', document.getElementById('content-prompt').value.trim());
+        formData.append('style', document.getElementById('writing-style').value);
+        formData.append('tone', document.getElementById('writing-tone').value);
+        formData.append('wordCount', document.getElementById('word-count').value);
+        formData.append('qualityTier', document.getElementById('quality-tier').value);
+
+        const response = await fetch('/api/writer/upload-and-generate', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${getAuthToken()}`
+          },
+          body: formData
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'File processing failed');
+        }
+
+        if (result.success) {
+          displayGeneratedContent(result);
+          updateUserCredits(result.metadata.remainingCredits);
+          document.getElementById('upload-modal').style.display = 'none';
+        } else {
+          throw new Error(result.error || 'File processing failed');
+        }
+
+      } catch (error) {
+        console.error('File processing error:', error);
+        showError(error.message);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // Output action functions
+    function copyToClipboard() {
+      const content = document.getElementById('generated-content').value;
+      navigator.clipboard.writeText(content).then(() => {
+        showNotification('Content copied to clipboard!');
+      }).catch(err => {
+        console.error('Copy failed:', err);
+        alert('Failed to copy content');
+      });
+    }
+
+    function downloadContent() {
+      const content = document.getElementById('generated-content').value;
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `generated-content-${Date.now()}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    async function saveToHistory() {
+      try {
+        const content = document.getElementById('generated-content').value;
+        const response = await makeAuthenticatedRequest('/api/assignments/save-to-history', {
+          method: 'POST',
+          body: JSON.stringify({
+            content,
+            title: currentContentType === 'assignment' ? 
+              document.getElementById('assignment-title').value : 
+              'Generated Content',
+            metadata: {
+              style: document.getElementById('writing-style').value,
+              tone: document.getElementById('writing-tone').value,
+              wordCount: document.getElementById('word-count').value,
+              contentType: currentContentType
+            }
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          showNotification('Content saved to history!');
+        } else {
+          throw new Error(result.error || 'Save failed');
+        }
+
+      } catch (error) {
+        console.error('Save error:', error);
+        alert('Failed to save content to history');
+      }
+    }
+
+    function updateUserCredits(newBalance) {
+      if (window.userSession && newBalance !== undefined) {
+        window.userSession.updateUser({ credits: newBalance });
+      }
+    }
+
+    function showNotification(message) {
+      // Simple notification - could be enhanced with a proper notification system
+      const notification = document.createElement('div');
+      notification.className = 'notification';
+      notification.textContent = message;
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #10b981;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        z-index: 1000;
+        animation: slideIn 0.3s ease;
+      `;
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.remove();
+      }, 3000);
+    }
+
+    function initializeSidebar() {
+      const sidebarToggle = document.getElementById('sidebar-toggle');
       const sidebar = document.getElementById('dashboard-sidebar');
       const dashboardLayout = document.querySelector('.dashboard-layout');
       
       sidebarToggle.addEventListener('click', function() {
         if (window.innerWidth <= 768) {
-          // Mobile behavior
           sidebar.classList.toggle('sidebar-open');
           dashboardLayout.classList.toggle('sidebar-active');
         } else {
-          // Desktop behavior
           dashboardLayout.classList.toggle('sidebar-collapsed');
         }
       });
       
-      // Close sidebar when clicking outside on mobile
       document.addEventListener('click', function(event) {
         if (window.innerWidth <= 768) {
           if (!sidebar.contains(event.target) && !sidebarToggle.contains(event.target) && sidebar.classList.contains('sidebar-open')) {
@@ -1491,7 +752,6 @@
         }
       });
       
-      // Handle window resize
       window.addEventListener('resize', function() {
         if (window.innerWidth > 768) {
           sidebar.classList.remove('sidebar-open');
@@ -1500,672 +760,70 @@
           dashboardLayout.classList.remove('sidebar-collapsed');
         }
       });
-      
-      // Auto-resize chat input
-      chatInput.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-        
-        // Enable/disable send button
-        sendBtn.disabled = !this.value.trim();
+
+      // User profile modal
+      document.getElementById('user-profile-card').addEventListener('click', function() {
+        document.getElementById('user-profile-modal').style.display = 'flex';
       });
       
-      // Send message on Enter (Shift+Enter for new line)
-      chatInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          if (!sendBtn.disabled) {
-            sendMessage();
-          }
-        }
+      document.getElementById('close-profile-modal').addEventListener('click', function() {
+        document.getElementById('user-profile-modal').style.display = 'none';
       });
       
-      // File upload handling
-      fileInput.addEventListener('change', handleFileUpload);
-    });
-    
-    function useQuickPrompt(prompt) {
-      document.getElementById('chat-input').value = prompt;
-      document.getElementById('send-btn').disabled = false;
-      document.getElementById('chat-input').focus();
-    }
-    
-    function sendMessage() {
-      const chatInput = document.getElementById('chat-input');
-      const message = chatInput.value.trim();
-      
-      if (!message) return;
-      
-      // Add user message
-      addMessage('user', message);
-      
-      // Clear input
-      chatInput.value = '';
-      chatInput.style.height = 'auto';
-      document.getElementById('send-btn').disabled = true;
-      
-      // Show typing indicator
-      showTypingIndicator();
-      
-      // Simulate AI response
-      setTimeout(() => {
-        hideTypingIndicator();
-        generateContent(message);
-      }, 2000);
-    }
-    
-    function addMessage(sender, content, timestamp = new Date()) {
-      const messagesContainer = document.getElementById('chat-messages');
-      const welcomeMessage = messagesContainer.querySelector('.welcome-message');
-      
-      if (welcomeMessage) {
-        welcomeMessage.style.display = 'none';
-      }
-      
-      const messageDiv = document.createElement('div');
-      messageDiv.className = `message ${sender}`;
-      
-      const avatar = document.createElement('div');
-      avatar.className = 'message-avatar';
-      avatar.innerHTML = sender === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
-      
-      const messageContent = document.createElement('div');
-      messageContent.className = 'message-content';
-      messageContent.innerHTML = content;
-      
-      const messageTime = document.createElement('div');
-      messageTime.className = 'message-time';
-      messageTime.textContent = timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      
-      messageDiv.appendChild(avatar);
-      const contentWrapper = document.createElement('div');
-      contentWrapper.appendChild(messageContent);
-      contentWrapper.appendChild(messageTime);
-      messageDiv.appendChild(contentWrapper);
-      
-      messagesContainer.appendChild(messageDiv);
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-      
-      messageHistory.push({sender, content, timestamp});
-    }
-    
-    function addCanvasMessage(sender, title, content, timestamp = new Date()) {
-      const messagesContainer = document.getElementById('chat-messages');
-      const welcomeMessage = messagesContainer.querySelector('.welcome-message');
-      
-      if (welcomeMessage) {
-        welcomeMessage.style.display = 'none';
-      }
-      
-      const canvasId = 'canvas-' + Date.now();
-      
-      const messageDiv = document.createElement('div');
-      messageDiv.className = `message ${sender}`;
-      
-      const avatar = document.createElement('div');
-      avatar.className = 'message-avatar';
-      avatar.innerHTML = '<i class="fas fa-robot"></i>';
-      
-      const canvasContainer = document.createElement('div');
-      canvasContainer.className = 'content-canvas';
-      canvasContainer.id = canvasId;
-      
-      const canvasHeader = document.createElement('div');
-      canvasHeader.className = 'canvas-header';
-      
-      const canvasTitle = document.createElement('h4');
-      canvasTitle.className = 'canvas-title';
-      canvasTitle.innerHTML = `<i class="fas fa-file-alt"></i> ${title}`;
-      
-      const canvasActions = document.createElement('div');
-      canvasActions.className = 'canvas-actions';
-      canvasActions.innerHTML = `
-        <button class="canvas-btn" onclick="previewCanvas('${canvasId}')" title="Preview">
-          <i class="fas fa-eye"></i> Preview
-        </button>
-        <button class="canvas-btn" onclick="editCanvas('${canvasId}')" title="Edit">
-          <i class="fas fa-edit"></i> Edit
-        </button>
-        <button class="canvas-btn" onclick="copyCanvas('${canvasId}')" title="Copy">
-          <i class="fas fa-copy"></i> Copy
-        </button>
-        <button class="canvas-btn" onclick="addCitations('${canvasId}')" title="Citations">
-          <i class="fas fa-quote-right"></i> Citations
-        </button>
-        <button class="canvas-btn" onclick="downloadCanvas('${canvasId}')" title="Download">
-          <i class="fas fa-download"></i> Download
-        </button>
-      `;
-      
-      canvasHeader.appendChild(canvasTitle);
-      canvasHeader.appendChild(canvasActions);
-      
-      const canvasContent = document.createElement('div');
-      canvasContent.className = 'canvas-content';
-      canvasContent.innerHTML = formatContent(content);
-      
-      const canvasStats = document.createElement('div');
-      canvasStats.className = 'canvas-stats';
-      const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
-      const charCount = content.length;
-      canvasStats.innerHTML = `
-        <span>${wordCount} words</span>
-        <span>${charCount} characters</span>
-        <span>${timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-      `;
-      
-      canvasContainer.appendChild(canvasHeader);
-      canvasContainer.appendChild(canvasContent);
-      canvasContainer.appendChild(canvasStats);
-      
-      const contentWrapper = document.createElement('div');
-      contentWrapper.appendChild(canvasContainer);
-      
-      messageDiv.appendChild(avatar);
-      messageDiv.appendChild(contentWrapper);
-      
-      messagesContainer.appendChild(messageDiv);
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-      
-      messageHistory.push({sender, content: title, timestamp, canvasContent: content});
-    }
-    
-    function formatContent(content) {
-      // Convert markdown-like formatting to HTML
-      return content
-        .replace(/^# (.*$)/gm, '<h1>$1</h1>')
-        .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-        .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/^• (.*$)/gm, '<li>$1</li>')
-        .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-        .replace(/\n\n/g, '</p><p>')
-        .replace(/^(?!<[h|u|l])/gm, '<p>')
-        .replace(/(?<!>)$/gm, '</p>')
-        .replace(/<p><\/p>/g, '')
-        .replace(/<p>(<[h|u])/g, '$1')
-        .replace(/(<\/[h|u].*>)<\/p>/g, '$1');
-    }
-    
-    function showTypingIndicator() {
-      document.getElementById('typing-indicator').style.display = 'flex';
-      const messagesContainer = document.getElementById('chat-messages');
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-    
-    function hideTypingIndicator() {
-      document.getElementById('typing-indicator').style.display = 'none';
-    }
-    
-    function toggleAssignmentOptions() {
-      const assignmentRadio = document.querySelector('input[name="contentType"][value="assignment"]');
-      const assignmentOptions = document.getElementById('assignment-options');
-      
-      if (assignmentRadio && assignmentOptions) {
-        if (assignmentRadio.checked) {
-          assignmentOptions.style.display = 'block';
-        } else {
-          assignmentOptions.style.display = 'none';
-        }
-      }
-    }
-    
-    async function generateContent(prompt) {
-      try {
-        // Get selected quality tier and content type
-        const qualityTier = document.querySelector('input[name="qualityTier"]:checked').value;
-        const contentType = document.querySelector('input[name="contentType"]:checked').value;
-        
-        // Prepare request body
-        const requestBody = {
-          prompt: prompt,
-          files: uploadedFiles,
-          style: 'conversational',
-          qualityTier: qualityTier,
-          contentType: contentType
-        };
-        
-        // Add assignment-specific parameters if needed
-        if (contentType === 'assignment') {
-          const assignmentTitle = document.getElementById('assignment-title').value;
-          const citationStyle = document.getElementById('citation-style').value;
-          
-          if (!assignmentTitle.trim()) {
-            alert('Please enter an assignment title for academic assignments.');
-            return;
-          }
-          
-          requestBody.assignmentTitle = assignmentTitle;
-          requestBody.citationStyle = citationStyle;
-        }
-        
-        // Get authentication token
-        const authToken = localStorage.getItem('authToken');
-        if (!authToken) {
-          alert('Please log in to use the writer tool.');
-          window.location.href = 'auth.html';
-          return;
-        }
-        
-        // Make API call with authentication
-        const response = await fetch('/api/writer/generate', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authToken}`
-          },
-          body: JSON.stringify(requestBody)
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to generate content');
-        }
-        
-        const data = await response.json();
-        
-        // Add AI response with canvas content
-        addCanvasMessage('assistant', 'Generated Content', data.content);
-        
-      } catch (error) {
-        console.error('Error generating content:', error);
-        
-        // Fallback demo content
-        const demoContent = generateDemoContent(prompt);
-        addCanvasMessage('assistant', 'Generated Content', demoContent);
-      }
-    }
-    
-    function generateDemoContent(prompt) {
-      // Fallback content when backend is not available
-      return `# Content Generation Unavailable\n\nBased on your request: "${prompt}"\n\nThe AI content generation service is currently unavailable. This could be due to:\n\n• Backend server not running\n• Network connectivity issues\n• Service maintenance\n\nPlease ensure the backend server is running and try again. Contact support if the issue persists.\n\n## Next Steps\n\n• Check server status\n• Verify network connection\n• Try again in a few moments\n• Contact technical support if needed`;
-    }
-    
-    function handleFileUpload(event) {
-      const files = Array.from(event.target.files);
-      const uploadedFilesContainer = document.getElementById('uploaded-files');
-      
-      files.forEach(file => {
-        if (file.size > 10 * 1024 * 1024) { // 10MB limit
-          alert(`File ${file.name} is too large. Maximum size is 10MB.`);
-          return;
-        }
-        
-        uploadedFiles.push(file);
-        
-        const fileItem = document.createElement('div');
-        fileItem.className = 'file-item';
-        fileItem.innerHTML = `
-          <div class="file-info">
-            <i class="fas fa-file"></i>
-            <span>${file.name}</span>
-          </div>
-          <button class="file-remove" onclick="removeFile('${file.name}')">
-            <i class="fas fa-times"></i>
-          </button>
-        `;
-        
-        uploadedFilesContainer.appendChild(fileItem);
-      });
-      
-      // Clear file input
-      event.target.value = '';
-    }
-    
-    function removeFile(fileName) {
-      uploadedFiles = uploadedFiles.filter(file => file.name !== fileName);
-      
-      const uploadedFilesContainer = document.getElementById('uploaded-files');
-      const fileItems = uploadedFilesContainer.querySelectorAll('.file-item');
-      
-      fileItems.forEach(item => {
-        if (item.querySelector('span').textContent === fileName) {
-          item.remove();
+      document.getElementById('user-profile-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+          this.style.display = 'none';
         }
       });
     }
-    
-    function updateContentStats() {
-      const content = document.getElementById('content-editor').value;
-      const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
-      const charCount = content.length;
-      
-      document.getElementById('word-count').textContent = `${wordCount} words`;
-      document.getElementById('char-count').textContent = `${charCount} characters`;
-    }
-    
-    function copyContent() {
-      const content = document.getElementById('content-editor').value;
-      if (!content.trim()) {
-        alert('No content to copy!');
-        return;
+
+    // CSS for animations and styling
+    const style = document.createElement('style');
+    style.textContent = `
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f4f6;
+        border-top: 4px solid #3b82f6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
       }
       
-      navigator.clipboard.writeText(content).then(() => {
-        alert('Content copied to clipboard!');
-      }).catch(() => {
-        alert('Failed to copy content. Please try again.');
-      });
-    }
-    
-    function downloadContent() {
-      const content = document.getElementById('content-editor').value;
-      if (!content.trim()) {
-        alert('No content to download!');
-        return;
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
       }
       
-      const blob = new Blob([content], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `ai-generated-content-${new Date().toISOString().slice(0, 10)}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-    
-    // Canvas message action functions
-    function previewCanvas(canvasId) {
-      const canvas = document.getElementById(canvasId);
-      const content = canvas.querySelector('.canvas-content').innerHTML;
-      
-      const previewWindow = window.open('', '_blank', 'width=800,height=600');
-      previewWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Content Preview</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; line-height: 1.6; }
-            h1, h2, h3 { color: #333; }
-            p { margin-bottom: 1em; }
-            ul { margin: 1em 0; }
-            li { margin-bottom: 0.5em; }
-          </style>
-        </head>
-        <body>
-          ${content}
-        </body>
-        </html>
-      `);
-      previewWindow.document.close();
-    }
-    
-    function editCanvas(canvasId) {
-      const canvas = document.getElementById(canvasId);
-      const contentDiv = canvas.querySelector('.canvas-content');
-      const currentContent = contentDiv.textContent || contentDiv.innerText;
-      
-      const editModal = document.createElement('div');
-      editModal.className = 'modal';
-      editModal.style.display = 'flex';
-      editModal.innerHTML = `
-        <div class="modal-content" style="max-width: 800px; width: 90%;">
-          <div class="modal-header">
-            <h3>Edit Content</h3>
-            <span class="close" onclick="this.closest('.modal').remove()">×</span>
-          </div>
-          <div class="modal-body">
-            <textarea id="edit-textarea" style="width: 100%; height: 400px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; resize: vertical;">${currentContent}</textarea>
-          </div>
-          <div class="modal-footer">
-            <button onclick="saveCanvasEdit('${canvasId}', this)" class="btn btn-primary">Save Changes</button>
-            <button onclick="this.closest('.modal').remove()" class="btn btn-secondary">Cancel</button>
-          </div>
-        </div>
-      `;
-      
-      document.body.appendChild(editModal);
-      document.getElementById('edit-textarea').focus();
-    }
-    
-    function saveCanvasEdit(canvasId, button) {
-      const textarea = document.getElementById('edit-textarea');
-      const newContent = textarea.value;
-      const canvas = document.getElementById(canvasId);
-      const contentDiv = canvas.querySelector('.canvas-content');
-      
-      contentDiv.innerHTML = formatContent(newContent);
-      
-      // Update stats
-      const statsDiv = canvas.querySelector('.canvas-stats');
-      const wordCount = newContent.trim() ? newContent.trim().split(/\s+/).length : 0;
-      const charCount = newContent.length;
-      const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      
-      statsDiv.innerHTML = `
-        <span>${wordCount} words</span>
-        <span>${charCount} characters</span>
-        <span>Edited at ${timestamp}</span>
-      `;
-      
-      button.closest('.modal').remove();
-    }
-    
-    function copyCanvas(canvasId) {
-      const canvas = document.getElementById(canvasId);
-      const content = canvas.querySelector('.canvas-content').textContent || canvas.querySelector('.canvas-content').innerText;
-      
-      navigator.clipboard.writeText(content).then(() => {
-        showNotification('Content copied to clipboard!', 'success');
-      }).catch(() => {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = content;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        showNotification('Content copied to clipboard!', 'success');
-      });
-    }
-    
-    function addCitations(canvasId) {
-      const canvas = document.getElementById(canvasId);
-      const contentDiv = canvas.querySelector('.canvas-content');
-      
-      const citationModal = document.createElement('div');
-      citationModal.className = 'modal';
-      citationModal.style.display = 'flex';
-      citationModal.innerHTML = `
-        <div class="modal-content" style="max-width: 600px;">
-          <div class="modal-header">
-            <h3>Add Citations</h3>
-            <span class="close" onclick="this.closest('.modal').remove()">×</span>
-          </div>
-          <div class="modal-body">
-            <div style="margin-bottom: 15px;">
-              <label>Citation Text:</label>
-              <input type="text" id="citation-text" placeholder="Enter citation text" style="width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;" />
-            </div>
-            <div style="margin-bottom: 15px;">
-              <label>Source URL (optional):</label>
-              <input type="url" id="citation-url" placeholder="https://example.com" style="width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;" />
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button onclick="insertCitation('${canvasId}', this)" class="btn btn-primary">Add Citation</button>
-            <button onclick="this.closest('.modal').remove()" class="btn btn-secondary">Cancel</button>
-          </div>
-        </div>
-      `;
-      
-      document.body.appendChild(citationModal);
-      document.getElementById('citation-text').focus();
-    }
-    
-    function insertCitation(canvasId, button) {
-      const citationText = document.getElementById('citation-text').value;
-      const citationUrl = document.getElementById('citation-url').value;
-      
-      if (!citationText.trim()) {
-        showNotification('Please enter citation text', 'error');
-        return;
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
       }
       
-      const canvas = document.getElementById(canvasId);
-      const contentDiv = canvas.querySelector('.canvas-content');
-      
-      const citation = citationUrl ? 
-        `<sup><a href="${citationUrl}" target="_blank" style="color: #007bff; text-decoration: none;">[${citationText}]</a></sup>` :
-        `<sup>[${citationText}]</sup>`;
-      
-      contentDiv.innerHTML += citation;
-      
-      button.closest('.modal').remove();
-      showNotification('Citation added successfully!', 'success');
-    }
-    
-    function downloadCanvas(canvasId) {
-      const canvas = document.getElementById(canvasId);
-      const title = canvas.querySelector('.canvas-title').textContent.replace(/^.*\s/, '').trim();
-      const content = canvas.querySelector('.canvas-content').textContent || canvas.querySelector('.canvas-content').innerText;
-      
-      const blob = new Blob([content], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      showNotification('Content downloaded successfully!', 'success');
-    }
-    
-    function showNotification(message, type = 'info') {
-      const notification = document.createElement('div');
-      notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        border-radius: 4px;
-        color: white;
-        font-weight: 500;
-        z-index: 10000;
-        animation: slideIn 0.3s ease;
-      `;
-      
-      switch(type) {
-        case 'success':
-          notification.style.backgroundColor = '#28a745';
-          break;
-        case 'error':
-          notification.style.backgroundColor = '#dc3545';
-          break;
-        default:
-          notification.style.backgroundColor = '#007bff';
+      .drag-over {
+        border-color: #3b82f6 !important;
+        background-color: #eff6ff !important;
       }
       
-      notification.textContent = message;
-      document.body.appendChild(notification);
-      
-      setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease';
-        setTimeout(() => notification.remove(), 300);
-      }, 3000);
-    }
-    
-    function clearEditor() {
-      if (confirm('Are you sure you want to clear the editor? This action cannot be undone.')) {
-        document.getElementById('content-editor').value = '';
-        updateContentStats();
-      }
-    }
-    
-    function previewContent() {
-      const content = document.getElementById('content-editor').value;
-      if (!content.trim()) {
-        alert('No content to preview!');
-        return;
+      .upload-area {
+        border: 2px dashed #d1d5db;
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
       }
       
-      // Create preview window
-      const previewWindow = window.open('', '_blank', 'width=800,height=600');
-      previewWindow.document.write(`
-        <html>
-          <head>
-            <title>Content Preview</title>
-            <style>
-              body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
-              h1, h2, h3 { color: #333; }
-              pre { background: #f5f5f5; padding: 10px; border-radius: 5px; }
-            </style>
-          </head>
-          <body>
-            <pre>${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
-          </body>
-        </html>
-      `);
-      previewWindow.document.close();
-    }
-    
-    function editContent() {
-      const editor = document.getElementById('content-editor');
-      editor.focus();
-      editor.setSelectionRange(editor.value.length, editor.value.length);
-    }
-    
-    function openHistoryModal() {
-      const historyModal = document.getElementById('history-modal');
-      historyModal.style.display = 'flex';
-      loadProjectHistory();
-    }
-    
-    function loadProjectHistory() {
-      // Load user's actual project history from backend
-      const historyGrid = document.getElementById('history-grid');
-      
-      // Show loading state
-      historyGrid.innerHTML = '<div class="loading-state"><i class="fas fa-spinner fa-spin"></i> Loading your projects...</div>';
-      
-      // TODO: Replace with actual API call to fetch user's content history
-      // For now, show empty state
-      setTimeout(() => {
-        historyGrid.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open"></i><p>No projects yet. Start writing to see your history here!</p></div>';
-      }, 1000);
-    }
-    
-    function loadHistoryItem(itemId) {
-      // TODO: Load specific history item from backend
-      console.log(`Loading project: ${itemId}`);
-    }
-    
-    function loadToEditor(itemId) {
-      // TODO: Load actual content from backend API
-      // For now, show message that this feature requires backend connection
-      alert('This feature requires backend connection. Please ensure the server is running.');
-      
-      // Close modal
-      document.getElementById('history-modal').style.display = 'none';
-      
-      alert('Content loaded to editor!');
-    }
-    
-    // Premium quality tier is now available to all users at 2x credit cost
-    // No plan restrictions needed - credit system handles access control
-    
-    function toggleQualityOptions() {
-      const dropdown = document.getElementById('quality-options');
-      const isVisible = dropdown.style.display !== 'none';
-      dropdown.style.display = isVisible ? 'none' : 'block';
-    }
-    
-    // Close quality dropdown when clicking outside
-    document.addEventListener('click', function(event) {
-      const dropdown = document.getElementById('quality-options');
-      const filterBtn = document.querySelector('.quality-filter-btn');
-      
-      if (!dropdown.contains(event.target) && !filterBtn.contains(event.target)) {
-        dropdown.style.display = 'none';
+      .upload-area:hover {
+        border-color: #3b82f6;
+        background-color: #f8fafc;
       }
-    });
+      
+      .file-item {
+        margin-bottom: 0.5rem;
+      }
+    `;
+    document.head.appendChild(style);
   </script>
-
-
 </body>
 </html>

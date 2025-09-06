@@ -394,6 +394,24 @@
       // Global variables
       let currentAnalysisResults = null;
       let currentContent = '';
+      let isAnalyzing = false;
+      
+      // API helper functions
+      function getAuthToken() {
+        return localStorage.getItem('authToken') || 'mock-token';
+      }
+
+      async function makeAuthenticatedRequest(url, options = {}) {
+        const token = getAuthToken();
+        return fetch(url, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            ...options.headers
+          }
+        });
+      }
       
       // Word count functionality
       contentInput.addEventListener('input', function() {
@@ -421,6 +439,8 @@
       
       // Analyze content
       analyzeBtn.addEventListener('click', async function() {
+        if (isAnalyzing) return;
+        
         const content = contentInput.value.trim();
         
         if (!content || content.length < 10) {
@@ -440,38 +460,38 @@
         }
         
         try {
+          isAnalyzing = true;
           analyzeBtn.disabled = true;
           analyzeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
           
-          // TODO: Replace with actual API call to /api/detector/analyze
-          // const response = await fetch('/api/detector/analyze', {
-          //   method: 'POST',
-          //   headers: {
-          //     'Content-Type': 'application/json',
-          //     'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-          //   },
-          //   body: JSON.stringify({ 
-          //     content: content,
-          //     options: options
-          //   })
-          // });
-          // 
-          // const result = await response.json();
-          // 
-          // if (!response.ok) {
-          //   throw new Error(result.message || result.error || 'Analysis failed');
-          // }
-          // 
-          // currentAnalysisResults = result.results;
-          // currentContent = content;
-          // displayResults(result);
+          const response = await makeAuthenticatedRequest('/api/detector/analyze', {
+            method: 'POST',
+            body: JSON.stringify({ 
+              content: content,
+              options: options
+            })
+          });
           
-          alert('API integration needed. Please implement the /api/detector/analyze endpoint.');
+          const result = await response.json();
+          
+          if (!response.ok) {
+            throw new Error(result.error || 'Analysis failed');
+          }
+          
+          if (result.success) {
+            currentAnalysisResults = result.data.results;
+            currentContent = content;
+            displayResults(result.data);
+            updateUserCredits(result.data.creditsUsed);
+          } else {
+            throw new Error(result.error || 'Analysis failed');
+          }
           
         } catch (error) {
           console.error('Analysis error:', error);
           alert(`Analysis failed: ${error.message}`);
         } finally {
+          isAnalyzing = false;
           analyzeBtn.disabled = false;
           analyzeBtn.innerHTML = '<i class="fas fa-magnifying-glass"></i> Analyze Content';
         }
@@ -501,9 +521,9 @@
         }
         
         const wordCount = currentContent.trim().split(/\s+/).filter(word => word.length > 0).length;
-        const estimatedCredits = Math.ceil(wordCount / 10); // 1:10 ratio for removal
+        const estimatedCredits = Math.ceil(wordCount / 5); // 1:5 ratio for removal
         
-        if (!confirm(`This will use our advanced two-cycle improvement process to remove detected issues.\n\nEstimated cost: ${estimatedCredits} credits (1 credit per 10 words)\n\nContinue?`)) {
+        if (!confirm(`This will use our advanced two-cycle improvement process to remove detected issues.\n\nEstimated cost: ${estimatedCredits} credits (1 credit per 5 words)\n\nContinue?`)) {
           return;
         }
         
@@ -517,55 +537,55 @@
             readabilityAnalysis: readabilityCheck.checked
           };
           
-          // TODO: Replace with actual API call to /api/detector/workflow
-          // const response = await fetch('/api/detector/workflow', {
-          //   method: 'POST',
-          //   headers: {
-          //     'Content-Type': 'application/json',
-          //     'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-          //   },
-          //   body: JSON.stringify({ 
-          //     content: currentContent,
-          //     options: options
-          //   })
-          // });
-          // 
-          // const result = await response.json();
-          // 
-          // if (!response.ok) {
-          //   throw new Error(result.message || result.error || 'Content improvement failed');
-          // }
-          // 
-          // // Update content input with final improved content
-          // contentInput.value = result.data.finalContent;
-          // contentInput.dispatchEvent(new Event('input')); // Trigger word count update
-          // 
-          // // Update current analysis results with final detection
-          // currentAnalysisResults = result.data.finalDetection;
-          // currentContent = result.data.finalContent;
-          // 
-          // // Display updated results
-          // displayResults({ results: result.data.finalDetection });
-          // 
-          // // Show improvement summary
-          // const summary = result.data.improvementSummary;
-          // let improvementMsg = `Content improved successfully!\n\n`;
-          // improvementMsg += `Cycles used: ${result.data.cyclesUsed}/2\n`;
-          // improvementMsg += `Credits used: ${result.data.totalCreditsUsed}\n\n`;
-          // 
-          // if (summary.plagiarismReduced > 0) {
-          //   improvementMsg += `Plagiarism reduced by ${summary.plagiarismReduced.toFixed(1)}%\n`;
-          // }
-          // if (summary.aiContentReduced > 0) {
-          //   improvementMsg += `AI content reduced by ${summary.aiContentReduced.toFixed(1)}%\n`;
-          // }
-          // if (summary.readabilityImproved > 0) {
-          //   improvementMsg += `Reading level improved by ${summary.readabilityImproved.toFixed(1)} grades\n`;
-          // }
-          // 
-          // alert(improvementMsg);
+          const response = await makeAuthenticatedRequest('/api/detector/workflow', {
+            method: 'POST',
+            body: JSON.stringify({ 
+              content: currentContent,
+              options: options
+            })
+          });
           
-          alert('API integration needed. Please implement the /api/detector/workflow endpoint.');
+          const result = await response.json();
+          
+          if (!response.ok) {
+            throw new Error(result.error || 'Content improvement failed');
+          }
+          
+          if (result.success) {
+            // Update content input with final improved content
+            contentInput.value = result.data.finalContent;
+            contentInput.dispatchEvent(new Event('input')); // Trigger word count update
+            
+            // Update current analysis results with final detection
+            currentAnalysisResults = result.data.finalDetection;
+            currentContent = result.data.finalContent;
+            
+            // Display updated results
+            displayResults({ results: result.data.finalDetection });
+            
+            // Update user credits
+            updateUserCredits(result.data.totalCreditsUsed);
+            
+            // Show improvement summary
+            const summary = result.data.improvementSummary;
+            let improvementMsg = `Content improved successfully!\n\n`;
+            improvementMsg += `Cycles used: ${result.data.cyclesUsed}/2\n`;
+            improvementMsg += `Credits used: ${result.data.totalCreditsUsed}\n\n`;
+            
+            if (summary.plagiarismReduced > 0) {
+              improvementMsg += `Plagiarism reduced by ${summary.plagiarismReduced.toFixed(1)}%\n`;
+            }
+            if (summary.aiContentReduced > 0) {
+              improvementMsg += `AI content reduced by ${summary.aiContentReduced.toFixed(1)}%\n`;
+            }
+            if (summary.readabilityImproved > 0) {
+              improvementMsg += `Reading level improved by ${summary.readabilityImproved.toFixed(1)} grades\n`;
+            }
+            
+            alert(improvementMsg);
+          } else {
+            throw new Error(result.error || 'Content improvement failed');
+          }
           
         } catch (error) {
           console.error('Workflow error:', error);
@@ -603,29 +623,21 @@
           saveResultsBtn.disabled = true;
           saveResultsBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
           
-          // TODO: Replace with actual API call to /api/detector/save-results
-          // const response = await fetch('/api/detector/save-results', {
-          //   method: 'POST',
-          //   headers: {
-          //     'Content-Type': 'application/json',
-          //     'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-          //   },
-          //   body: JSON.stringify({
-          //     content: currentContent,
-          //     results: currentAnalysisResults,
-          //     timestamp: new Date().toISOString()
-          //   })
-          // });
-          // 
-          // const result = await response.json();
-          // 
-          // if (!response.ok) {
-          //   throw new Error(result.message || result.error || 'Failed to save results');
-          // }
-          // 
-          // alert('Analysis results saved to your history successfully!');
+          // Save to local history for now - could be enhanced with backend storage
+          const historyItem = {
+            id: Date.now(),
+            content: currentContent,
+            results: currentAnalysisResults,
+            timestamp: new Date().toISOString(),
+            type: 'detector_analysis'
+          };
           
-          alert('API integration needed. Please implement the /api/detector/save-results endpoint.');
+          const history = JSON.parse(localStorage.getItem('detectorHistory') || '[]');
+          history.unshift(historyItem);
+          history.splice(20); // Keep only last 20 items
+          localStorage.setItem('detectorHistory', JSON.stringify(history));
+          
+          alert('Analysis results saved to your history successfully!');
           
         } catch (error) {
           console.error('Save error:', error);
@@ -701,6 +713,15 @@
       function showNoResults() {
         noResults.style.display = 'block';
         resultsContainer.style.display = 'none';
+      }
+      
+      // Update user credits
+      function updateUserCredits(creditsUsed) {
+        if (window.userSession && creditsUsed !== undefined) {
+          const currentUser = window.userSession.getCurrentUser();
+          const newBalance = Math.max(0, currentUser.credits - creditsUsed);
+          window.userSession.updateUser({ credits: newBalance });
+        }
       }
       
       // Generate text report
