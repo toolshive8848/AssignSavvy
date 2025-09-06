@@ -1,5 +1,13 @@
+const AtomicCreditSystem = require('./atomicCreditSystem');
+
 class CreditSystem {
     constructor() {
+        // DEPRECATED: This class contains race condition vulnerabilities
+        // Use AtomicCreditSystem for all credit operations
+        console.warn('CreditSystem class is deprecated. Use AtomicCreditSystem instead.');
+        
+        this.atomicCreditSystem = new AtomicCreditSystem();
+        
         this.planLimits = {
             free: {
                 maxWordCount: 2000,
@@ -38,6 +46,23 @@ class CreditSystem {
             'advanced': 1.6,
             'expert': 2.0
         };
+    }
+
+    /**
+     * DEPRECATED: Use AtomicCreditSystem.deductCreditsAtomic() instead
+     * This method has race condition vulnerabilities
+     */
+    async deductCredits(userId, creditsToDeduct, planType, toolType = 'writing') {
+        console.error('DEPRECATED: CreditSystem.deductCredits() called - this has race condition vulnerabilities!');
+        console.error('Use AtomicCreditSystem.deductCreditsAtomic() instead');
+        
+        // Redirect to atomic system to prevent race conditions
+        return await this.atomicCreditSystem.deductCreditsAtomic(
+            userId,
+            creditsToDeduct,
+            planType,
+            toolType
+        );
     }
 
     /**
