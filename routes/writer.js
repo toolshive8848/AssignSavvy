@@ -12,79 +12,6 @@ const PlanValidator = require('../services/planValidator');
 const router = express.Router();
 const fileProcessingService = new FileProcessingService();
 const llmService = new LLMService();
-const contentDatabase = new ContentDatabase();
-const multiPartGenerator = new MultiPartGenerator();
-const atomicCreditSystem = new AtomicCreditSystem();
-const planValidator = new PlanValidator();
-
-// Configure multer for file uploads
-const storage = multer.memoryStorage(); // Store files in memory for processing
-const upload = multer({
-    storage: storage,
-    limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB limit
-        files: 5 // Maximum 5 files
-    },
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = ['.pdf', '.docx', '.txt'];
-        const ext = path.extname(file.originalname).toLowerCase();
-        
-        if (allowedTypes.includes(ext)) {
-            cb(null, true);
-        } else {
-            cb(new Error(`Unsupported file type: ${ext}. Allowed types: PDF, DOCX, TXT`), false);
-        }
-    }
-});
-
-/**
- * Assignment generation function (extracted from assignments.js)
- */
-const generateAssignmentContent = async (title, description, wordCount, citationStyle, style = 'Academic', tone = 'Formal') => {
-    const styleTemplates = {
-        'Academic': {
-            introduction: 'This scholarly examination explores',
-            transition: 'Furthermore, research indicates that',
-            conclusion: 'In conclusion, the evidence demonstrates'
-        },
-        'Business': {
-            introduction: 'This business analysis examines',
-            transition: 'Market data suggests that',
-            conclusion: 'The strategic implications indicate'
-        },
-        'Creative': {
-            introduction: 'Imagine a world where',
-            transition: 'As we delve deeper into this narrative',
-            conclusion: 'The story ultimately reveals'
-        }
-    };
-    
-    const selectedStyle = styleTemplates[style] || styleTemplates['Academic'];
-    
-    const mockContent = `
-# ${title}
-
-## Introduction
-
-${selectedStyle.introduction} the topic of "${title}" with detailed analysis and research-based insights. The following content has been generated based on the provided instructions: ${description}
-
-## Main Body
-
-${selectedStyle.transition} Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-
-Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
-### Key Points
-
-1. First main argument with supporting evidence
-2. Second critical analysis point
-3. Third perspective on the topic
-4. Fourth consideration and implications
-
-## Analysis
-
-The research indicates several important findings that contribute to our understanding of this topic. These insights are particularly relevant in the current academic discourse.
-
 ## Conclusion
 
 In conclusion, this analysis of "${title}" reveals significant insights that contribute to the broader understanding of the subject matter. The implications of these findings extend beyond the immediate scope of this assignment.
@@ -138,8 +65,6 @@ router.post('/generate', authenticateToken, async (req, res) => {
         if (wordCount < 100 || wordCount > 2000) {
             return res.status(400).json({
                 success: false,
-                error: 'Word count must be between 100 and 2000'
-            });
         }
         
         // For assignment type, require title
@@ -161,30 +86,6 @@ router.post('/generate', authenticateToken, async (req, res) => {
                 success: false,
                 error: planValidation.error || 'Plan validation failed'
             });
-        }
-        
-        // Premium quality tier is now available to all users with 2x credit cost
-        
-        // Calculate credits needed based on quality tier
-        // Standard: 1 credit per 3 words, Premium: 2x credits (2 credits per 3 words)
-        let baseCreditsNeeded = Math.ceil(wordCount / 3); // 1 credit per 3 words
-        const creditsNeeded = qualityTier === 'premium' ? baseCreditsNeeded * 2 : baseCreditsNeeded;
-        
-        // Deduct credits atomically
-        const creditResult = await atomicCreditSystem.deductCreditsAtomic(
-            userId,
-            creditsNeeded,
-            planValidation.userPlan.planType,
-            'writing'
-        );
-        
-        if (!creditResult.success) {
-            return res.status(400).json({
-                success: false,
-                error: `Insufficient credits. Need ${creditsNeeded}, available: ${creditResult.previousBalance || 0}`
-            });
-        }
-        
         try {
             let result;
             let contentSource = 'new_generation';
@@ -221,47 +122,17 @@ router.post('/generate', authenticateToken, async (req, res) => {
                     });
                     
                     contentSource = result.usedSimilarContent ? 'assignment_multipart_optimized' : 'assignment_multipart_new';
-                } else {
-                    // Use standard assignment generation for standard quality
-                    const assignmentContent = await generateAssignmentContent(
-                        assignmentTitle,
-                        prompt,
-                        wordCount,
-                        citationStyle,
-                        style,
-                        tone
-                    );
-                    
-                    // Apply 2-loop refinement for premium quality even in single generation
-                    let finalContent = assignmentContent;
-                    let refinementCycles = 0;
-                    
-                    if (enableRefinement) {
-                        console.log('Applying 2-loop refinement to assignment');
-                        try {
-                            const refinedContent = await llmService.generateContent(
-                                `Refine and improve this assignment content:\n\n${assignmentContent}\n\nMake it more academic, add depth, and ensure ${citationStyle} citation format.`,
-                                style,
-                                tone,
-                                wordCount,
-                                'premium'
-                            );
-                            finalContent = refinedContent.content;
-                            refinementCycles = 1;
-                        } catch (refinementError) {
-                            console.warn('Refinement failed, using original content:', refinementError);
-                        }
-                    }
+                    // Use multi-part generation for all assignments to ensure quality
                     
                     result = {
-                        content: finalContent,
-                        wordCount: finalContent.split(/\s+/).length,
-                        generationTime: enableRefinement ? 3500 : 2000,
-                        source: 'assignment_generation',
-                        refinementCycles: refinementCycles,
+                        content: `Assignment generation requires multi-part processing. Please use the multi-part generator.`,
+                        wordCount: 0,
+                        generationTime: 0,
+                        source: 'error',
+                        refinementCycles: 0,
                         chunksGenerated: 1
                     };
-                    contentSource = enableRefinement ? 'assignment_refined' : 'assignment_new';
+                    contentSource = 'error';
                 }
             } else if (useMultiPart) {
                 console.log(`Using multi-part generation for ${wordCount} words`);
@@ -284,54 +155,22 @@ router.post('/generate', authenticateToken, async (req, res) => {
                 
                 contentSource = result.usedSimilarContent ? 'multipart_optimized' : 'multipart_new';
             } else {
-                // Use traditional single-generation for smaller content
-                console.log(`Using single generation for ${wordCount} words`);
+                // Use multi-part generation for all content to ensure consistency
+                result = await multiPartGenerator.generateMultiPartContent({
+                    userId,
+                    prompt,
+                    requestedWordCount: wordCount,
+                    userPlan: planValidation.userPlan.planType,
+                    style,
+                    tone,
+                    subject: req.body.subject || '',
+                    additionalInstructions: req.body.additionalInstructions || '',
+                    requiresCitations: false,
+                    qualityTier: qualityTier,
+                    enableRefinement: enableRefinement
+                });
                 
-                // Check for similar content in database (80%+ matching)
-                const similarContent = await contentDatabase.findSimilarContent(prompt, style, tone, wordCount);
-                
-                if (similarContent && similarContent.length > 0) {
-                    // Use existing similar content as base for polishing
-                    console.log(`Found ${similarContent.length} similar content matches`);
-                    const bestMatch = similarContent[0]; // Highest similarity score
-                    
-                    // Get content for polishing and refinement
-                    const polishingContent = await contentDatabase.getContentForPolishing(bestMatch.contentId, wordCount);
-                    
-                    if (polishingContent && polishingContent.sections) {
-                        // Use existing content as base, polish to match new requirements
-                        result = await llmService.polishExistingContent(
-                            polishingContent.sections,
-                            prompt,
-                            style,
-                            tone,
-                            wordCount,
-                            qualityTier
-                        );
-                        contentSource = 'optimized_existing';
-                        
-                        // Update access statistics for the reused content
-                        await contentDatabase.updateAccessStatistics([bestMatch.contentId]);
-                    } else {
-                        // Fallback to new generation if polishing fails
-                        result = await llmService.generateContent(prompt, style, tone, wordCount, qualityTier);
-                    }
-                } else {
-                    // No similar content found, generate new content
-                    console.log('No similar content found, generating new content');
-                    result = await llmService.generateContent(prompt, style, tone, wordCount, qualityTier);
-                }
-                
-                // Store the new/polished content in database for future optimization
-                if (result && result.content) {
-                    await contentDatabase.storeContent(userId, prompt, result.content, {
-                        style,
-                        tone,
-                        generationTime: result.generationTime,
-                        source: contentSource,
-                        wordCount: wordCount
-                    });
-                }
+                contentSource = result.usedSimilarContent ? 'multipart_optimized' : 'multipart_new';
             }
             
             res.json({
@@ -348,6 +187,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
                     wordCount: result.wordCount || wordCount,
                     creditsUsed: creditsNeeded,
                     remainingCredits: creditResult.newBalance,
+                    newBalance: creditResult.newBalance,
                     qualityTier: qualityTier,
                     enabledRefinement: enableRefinement,
                     // Content type specific metadata
@@ -384,11 +224,11 @@ router.post('/generate', authenticateToken, async (req, res) => {
             
             // Rollback credits on generation failure
             try {
-                await atomicCreditSystem.refundCreditsAtomic(
+                await atomicCreditSystem.rollbackTransaction(
                     userId,
+                    creditResult.transactionId,
                     creditsNeeded,
-                    planValidation.userPlan.planType,
-                    'writing_rollback'
+                    wordCount
                 );
             } catch (rollbackError) {
                 console.error('Credit rollback failed:', rollbackError);
@@ -524,68 +364,23 @@ router.post('/upload-and-generate', authenticateToken, upload.array('files', 5),
                 
                 contentSource = llmResult.usedSimilarContent ? 'multipart_optimized_files' : 'multipart_new_files';
             } else {
-                // Use traditional single-generation for smaller file-based content
-                console.log(`Using single generation for file-based content: ${wordCount} words`);
+                // Use multi-part generation for all file-based content to ensure consistency
+                llmResult = await multiPartGenerator.generateMultiPartContent({
+                    userId,
+                    prompt: result.prompt,
+                    requestedWordCount: wordCount,
+                    userPlan: planValidation.userPlan.planType,
+                    style,
+                    tone,
+                    subject: req.body.subject || '',
+                    additionalInstructions: additionalPrompt,
+                    requiresCitations: req.body.requiresCitations || false,
+                    citationStyle: req.body.citationStyle || 'apa',
+                    qualityTier: qualityTier,
+                    enableRefinement: enableRefinement
+                });
                 
-                // Check for similar content in database (80%+ matching) using the generated prompt
-                const similarContent = await contentDatabase.findSimilarContent(result.prompt, style, tone, wordCount);
-                
-                if (similarContent && similarContent.length > 0) {
-                    // Use existing similar content as base for polishing
-                    console.log(`Found ${similarContent.length} similar content matches for file-based prompt`);
-                    const bestMatch = similarContent[0]; // Highest similarity score
-                    
-                    // Get content for polishing and refinement
-                    const polishingContent = await contentDatabase.getContentForPolishing(bestMatch.contentId, wordCount);
-                    
-                    if (polishingContent && polishingContent.sections) {
-                        // Use existing content as base, polish to match new requirements
-                        llmResult = await llmService.polishExistingContent(
-                            polishingContent.sections,
-                            result.prompt,
-                            style,
-                            tone,
-                            wordCount,
-                            qualityTier
-                        );
-                        contentSource = 'optimized_existing';
-                        
-                        // Update access statistics for the reused content
-                        await contentDatabase.updateAccessStatistics([bestMatch.contentId]);
-                    } else {
-                        // Fallback to new generation if polishing fails
-                        llmResult = await llmService.generateContent(
-                            result.prompt,
-                            style,
-                            tone,
-                            wordCount,
-                            qualityTier
-                        );
-                    }
-                } else {
-                    // No similar content found, generate new content
-                    console.log('No similar content found for file-based prompt, generating new content');
-                    llmResult = await llmService.generateContent(
-                        result.prompt,
-                        style,
-                        tone,
-                        wordCount,
-                        qualityTier
-                    );
-                }
-                
-                // Store the new/polished content in database for future optimization
-                if (llmResult && llmResult.content) {
-                    await contentDatabase.storeContent(userId, result.prompt, llmResult.content, {
-                        style,
-                        tone,
-                        generationTime: llmResult.generationTime,
-                        source: contentSource,
-                        wordCount: wordCount,
-                        basedOnFiles: true,
-                        fileCount: files.length
-                    });
-                }
+                contentSource = llmResult.usedSimilarContent ? 'multipart_optimized_files' : 'multipart_new_files';
             }
             
             // Prepare response with multi-part metadata if applicable
@@ -602,6 +397,7 @@ router.post('/upload-and-generate', authenticateToken, upload.array('files', 5),
                     contentSource: contentSource,
                     creditsUsed: creditsNeeded,
                     remainingCredits: creditResult.newBalance,
+                    newBalance: creditResult.newBalance,
                     qualityTier: qualityTier,
                     enabledRefinement: enableRefinement,
                     basedOnFiles: true,
@@ -630,12 +426,10 @@ router.post('/upload-and-generate', authenticateToken, upload.array('files', 5),
                 response.metadata.isAcceptable = llmResult.finalDetectionResults?.isAcceptable || true;
                 response.metadata.detectionConfidence = llmResult.finalDetectionResults?.confidence || null;
                 response.metadata.detectionRecommendations = llmResult.finalDetectionResults?.recommendations || [];
-                response.metadata.newBalance = creditResult.newBalance;
             } else {
                 // Add single-generation metadata
                 response.metadata.isMultiPart = false;
                 response.metadata.similarContentFound = contentSource === 'optimized_existing';
-                response.metadata.newBalance = creditResult.newBalance;
             }
             
             res.json(response);
@@ -645,11 +439,11 @@ router.post('/upload-and-generate', authenticateToken, upload.array('files', 5),
             
             // Rollback credits on generation failure
             try {
-                await atomicCreditSystem.refundCreditsAtomic(
+                await atomicCreditSystem.rollbackTransaction(
                     userId,
+                    creditResult.transactionId,
                     creditsNeeded,
-                    planValidation.userPlan.planType,
-                    'writing_rollback'
+                    wordCount
                 );
             } catch (rollbackError) {
                 console.error('Credit rollback failed:', rollbackError);
@@ -791,7 +585,6 @@ router.use((error, req, res, next) => {
     }
     
     if (error.message.includes('Unsupported file type')) {
-        return res.status(400).json({
             success: false,
             error: 'Unsupported file type',
             details: error.message

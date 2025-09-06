@@ -48,93 +48,11 @@ const authenticateToken = (req, res, next) => {
     }
 };
 
-// Enhanced AI content generation service with style and tone support
-const generateAssignmentContent = async (title, description, wordCount, citationStyle, style = 'Academic', tone = 'Formal') => {
-    // This is an enhanced mock implementation. In production, integrate with OpenAI GPT-4 or similar
-    const styleTemplates = {
-        'Academic': {
-            introduction: 'This scholarly examination explores',
-            transition: 'Furthermore, research indicates that',
-            conclusion: 'In conclusion, the evidence demonstrates'
-        },
-        'Business': {
-            introduction: 'This business analysis examines',
-            transition: 'Market data suggests that',
-            conclusion: 'The strategic implications indicate'
-        },
-        'Creative': {
-            introduction: 'Imagine a world where',
-            transition: 'As we delve deeper into this narrative',
-            conclusion: 'The story ultimately reveals'
-        }
-    };
-    
-    const selectedStyle = styleTemplates[style] || styleTemplates['Academic'];
-    
-    const mockContent = `
-# ${title}
-
-## Introduction
-
-${selectedStyle.introduction} the topic of "${title}" with detailed analysis and research-based insights. The following content has been generated based on the provided instructions: ${description}
-
-## Main Body
-
-${selectedStyle.transition} Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-
-Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
-### Key Points
-
-1. First main argument with supporting evidence
-2. Second critical analysis point
-3. Third perspective on the topic
-4. Fourth consideration and implications
-
-## Analysis
-
-The research indicates several important findings that contribute to our understanding of this topic. These insights are particularly relevant in the current academic discourse.
-
-## Conclusion
-
-In conclusion, this analysis of "${title}" reveals significant insights that contribute to the broader understanding of the subject matter. The implications of these findings extend beyond the immediate scope of this assignment.
-
-## References
-
-${citationStyle === 'APA' ? 
-`Smith, J. (2023). Academic Writing in the Digital Age. Journal of Modern Education, 45(2), 123-145.
-
-Johnson, M. & Brown, A. (2022). Research Methodologies for Students. Academic Press.` :
-citationStyle === 'MLA' ?
-`Smith, John. "Academic Writing in the Digital Age." Journal of Modern Education, vol. 45, no. 2, 2023, pp. 123-145.
-
-Johnson, Mary, and Anne Brown. Research Methodologies for Students. Academic Press, 2022.` :
-`Smith, J. (2023). Academic Writing in the Digital Age. Journal of Modern Education 45, no. 2: 123-145.
-
-Johnson, M., and A. Brown. Research Methodologies for Students. Academic Press, 2022.`}
-    `.trim();
-
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    return mockContent.substring(0, Math.min(mockContent.length, wordCount * 6)); // Rough word estimation
-};
-
-// Mock plagiarism checking service
-const checkPlagiarism = async (content) => {
-    // This is a mock implementation. In production, integrate with Originality.ai, Copyleaks, etc.
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Return a random originality score between 85-98%
-    const score = 85 + Math.random() * 13;
-    return Math.round(score * 100) / 100;
-};
-
 // Create new assignment
 // New endpoint for AI Writer tool content generation
 router.post('/generate', authenticateToken, async (req, res) => {
     const { prompt, style, tone, wordCount, subject, additionalInstructions, citationStyle, requiresCitations } = req.body;
-    const userId = req.user.id;
+    const userId = req.user.userId;
     const db = req.app.locals.db;
 
     // Validate input parameters
@@ -183,222 +101,220 @@ router.post('/generate', authenticateToken, async (req, res) => {
     }
 
     try {
-        // Get user information and check credits
-        db.get('SELECT credits, is_premium FROM users WHERE id = ?', [userId], async (err, user) => {
-            if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ error: 'Database error' });
-            }
+        // Step 1: Atomic credit deduction with 1:3 word-to-credit ratio
+        console.log(`Attempting atomic credit deduction for ${wordCount} words`);
+        
+        const creditDeductionResult = await atomicCreditSystem.deductCreditsAtomic(
+            userId,
+            Math.ceil(wordCount / 3), // Calculate credits: 1 credit per 3 words
+            planValidation.userPlan.planType,
+            'writing'
+        );
+        
+        if (!creditDeductionResult.success) {
+            return res.status(402).json({
+                success: false,
+                error: 'Insufficient credits. Please top-up.',
+                errorCode: 'INSUFFICIENT_CREDITS',
+                details: {
+                    requiredCredits: Math.ceil(wordCount / 3),
+                    currentBalance: creditDeductionResult.previousBalance || 0,
+                    shortfall: Math.ceil(wordCount / 3) - (creditDeductionResult.previousBalance || 0)
+                }
+            });
+        }
+        
+        console.log(`Credits deducted successfully. Transaction ID: ${creditDeductionResult.transactionId}`);
 
-            if (!user) {
-                return res.status(404).json({ error: 'User not found' });
-            }
-
-            // Step 2: Atomic credit deduction with 1:10 word-to-credit ratio
-            console.log(`Attempting atomic credit deduction for ${wordCount} words`);
+        try {
+            // Step 2: Multi-part LLM generation with iterative detection
+            const generationResult = await multiPartGenerator.generateMultiPartContent({
+                userId: userId,
+                prompt,
+                requestedWordCount: wordCount,
+                userPlan: planValidation.userPlan.planType || 'freemium',
+                style,
+                tone,
+                subject: subject || '',
+                additionalInstructions: additionalInstructions || '',
+                requiresCitations: requiresCitations || false,
+                citationStyle: citationStyle || 'apa'
+            });
             
-            const creditDeductionResult = await atomicCreditSystem.deductCreditsAtomic(
-                req.user.id,
-                Math.ceil(wordCount / 3), // Calculate credits: 1 credit per 3 words
-                planValidation.userPlan.planType,
-                'writing'
+            // Step 3: Process citations if required
+            let citationData = {
+                requiresCitations: false,
+                processedContent: generationResult.content,
+                bibliography: [],
+                inTextCitations: [],
+                citationCount: 0
+            };
+            
+            if (requiresCitations && citationStyle) {
+                console.log(`Processing citations with style: ${citationStyle}`);
+                citationData = await zoteroCSLProcessor.processCitations(
+                    generationResult.content,
+                    citationStyle,
+                    subject || prompt.substring(0, 100)
+                );
+            }
+            
+            // Step 4: Final detection processing for combined content
+            console.log('Running final detection on combined content');
+            const finalDetectionResults = await finalDetectionService.processFinalDetection(
+                citationData.processedContent,
+                generationResult.chunkDetectionResults || [],
+                {
+                    contentId: generationResult.contentId,
+                    userId: userId,
+                    isMultiPart: generationResult.chunksGenerated > 1,
+                    generationMethod: 'multi-part'
+                }
             );
             
-            if (!creditDeductionResult.success) {
-                return res.status(402).json({
-                    success: false,
-                    error: 'Insufficient credits. Please top-up.',
-                    errorCode: 'INSUFFICIENT_CREDITS',
-                    details: {
-                        requiredCredits: creditDeductionResult.creditsDeducted || Math.ceil(wordCount / 5),
-                        currentBalance: creditDeductionResult.previousBalance || 0,
-                        shortfall: (creditDeductionResult.creditsDeducted || Math.ceil(wordCount / 5)) - (creditDeductionResult.previousBalance || 0)
-                    }
-                });
-            }
+            // Generate assignment ID
+            const assignmentId = `assign_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             
-            console.log(`Credits deducted successfully. Transaction ID: ${creditDeductionResult.transactionId}`);
-
             try {
-                // Step 3: Multi-part LLM generation with iterative detection
-                const generationResult = await multiPartGenerator.generateMultiPartContent({
-                    userId: req.user.id,
+                // Record usage after successful generation
+                await planValidatorInstance.recordUsage(userId, {
+                    wordsGenerated: citationData.processedContent ? citationData.processedContent.split(/\s+/).length : generationResult.wordCount,
+                    creditsUsed: creditDeductionResult.creditsDeducted,
+                    generationType: 'assignment'
+                });
+                
+                // Step 5: Save to content history with comprehensive metadata
+                const contentHistoryData = {
+                    finalContent: citationData.processedContent,
+                    title: `${subject || 'Assignment'} - ${new Date().toLocaleDateString()}`,
                     prompt,
-                    requestedWordCount: wordCount,
-                    userPlan: planValidation.userPlan.planType || 'freemium',
                     style,
                     tone,
-                    subject: subject || '',
-                    additionalInstructions: additionalInstructions || ''
-                });
-                
-                // Step 4: Process citations if required
-                let citationData = {
-                    requiresCitations: false,
-                    processedContent: generationResult.content,
-                    bibliography: [],
-                    inTextCitations: [],
-                    citationCount: 0
+                    finalWordCount: citationData.processedContent ? citationData.processedContent.split(/\s+/).length : generationResult.wordCount,
+                    isMultiPart: generationResult.chunksGenerated > 1,
+                    chunksGenerated: generationResult.chunksGenerated,
+                    refinementCycles: generationResult.refinementCycles,
+                    finalDetectionResults,
+                    citationsUsed: citationData.requiresCitations,
+                    citationStyle: citationStyle || null,
+                    citationCount: citationData.citationCount,
+                    bibliography: citationData.bibliography,
+                    generationTime: generationResult.generationTime,
+                    creditsUsed: creditDeductionResult.creditsDeducted,
+                    transactionId: creditDeductionResult.transactionId,
+                    usedSimilarContent: generationResult.usedSimilarContent,
+                    similarContentId: generationResult.similarContentId,
+                    optimizationApplied: generationResult.usedSimilarContent,
+                    userPlan: planValidation.userPlan.planType,
+                    planLimits: planValidation.userPlan,
+                    tags: [subject, style, tone].filter(Boolean)
                 };
                 
-                if (requiresCitations && citationStyle) {
-                    console.log(`Processing citations with style: ${citationStyle}`);
-                    citationData = await zoteroCSLProcessor.processCitations(
-                        generationResult.content,
-                        citationStyle,
-                        subject || prompt.substring(0, 100)
-                    );
-                }
+                const historyResult = await contentHistoryService.saveContentToHistory(userId, contentHistoryData);
                 
-                // Step 5: Final detection processing for combined content
-                console.log('Running final detection on combined content');
-                const finalDetectionResults = await finalDetectionService.processFinalDetection(
-                    citationData.processedContent,
-                    generationResult.chunkDetectionResults || [],
-                    {
+                const assignment = {
+                    id: assignmentId,
+                    userId: userId,
+                    prompt,
+                    content: citationData.processedContent,
+                    wordCount: contentHistoryData.finalWordCount,
+                    style,
+                    tone,
+                    subject: subject || 'General',
+                    additionalInstructions: additionalInstructions || '',
+                    status: 'completed',
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    contentHistoryId: historyResult.contentId,
+                    metadata: {
+                        chunksGenerated: generationResult.chunksGenerated,
+                        refinementCycles: generationResult.refinementCycles,
+                        generationTime: generationResult.generationTime,
                         contentId: generationResult.contentId,
-                        userId: req.user.id,
-                        isMultiPart: generationResult.chunksGenerated > 1,
-                        generationMethod: 'multi-part'
+                        usedSimilarContent: generationResult.usedSimilarContent,
+                        creditsUsed: creditDeductionResult.creditsDeducted,
+                        transactionId: creditDeductionResult.transactionId,
+                        citationsProcessed: citationData.requiresCitations,
+                        finalDetectionScore: finalDetectionResults.qualityScore,
+                        requiresReview: finalDetectionResults.requiresReview
+                    }
+                };
+                
+                // Save to database
+                db.run(
+                    'INSERT INTO assignments (user_id, title, description, word_count, citation_style, content, originality_score, status, credits_used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [userId, assignment.subject, assignment.prompt, assignment.wordCount, citationStyle || 'APA', assignment.content, finalDetectionResults.originalityScore || 95, 'completed', creditDeductionResult.creditsDeducted],
+                    function(err) {
+                        if (err) {
+                            console.error('Database save error:', err);
+                        }
                     }
                 );
                 
-                // Generate assignment ID
-                const assignmentId = `assign_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                
-                try {
-                    // Record usage after successful generation
-                    await planValidatorInstance.recordUsage({
-                        userId: req.user.id,
-                        wordsGenerated: citationData.processedContent ? citationData.processedContent.split(/\s+/).length : generationResult.wordCount,
-                        creditsUsed: creditDeductionResult.creditsDeducted,
-                        generationType: 'assignment'
-                    });
-                    
-                    // Step 6: Save to content history with comprehensive metadata
-                    const contentHistoryData = {
-                        finalContent: citationData.processedContent,
-                        title: `${subject || 'Assignment'} - ${new Date().toLocaleDateString()}`,
-                        prompt,
-                        style,
-                        tone,
-                        finalWordCount: citationData.processedContent ? citationData.processedContent.split(/\s+/).length : generationResult.wordCount,
-                        isMultiPart: generationResult.chunksGenerated > 1,
+                res.json({
+                    success: true,
+                    assignment: {
+                        id: assignment.id,
+                        prompt: assignment.prompt,
+                        content: assignment.content,
+                        wordCount: assignment.wordCount,
+                        style: assignment.style,
+                        tone: assignment.tone,
+                        subject: assignment.subject,
+                        status: assignment.status,
+                        createdAt: assignment.createdAt,
+                        contentHistoryId: assignment.contentHistoryId,
+                        metadata: assignment.metadata
+                    },
+                    generationStats: {
                         chunksGenerated: generationResult.chunksGenerated,
                         refinementCycles: generationResult.refinementCycles,
-                        finalDetectionResults,
-                        citationsUsed: citationData.requiresCitations,
-                        citationStyle: citationStyle || null,
+                        generationTime: generationResult.generationTime,
+                        creditsUsed: creditDeductionResult.creditsDeducted,
+                        usedSimilarContent: generationResult.usedSimilarContent,
+                        newBalance: creditDeductionResult.newBalance
+                    },
+                    citationData: {
+                        requiresCitations: citationData.requiresCitations,
+                        citationStyle: citationStyle,
                         citationCount: citationData.citationCount,
                         bibliography: citationData.bibliography,
-                        generationTime: generationResult.generationTime,
-                         creditsUsed: creditDeductionResult.creditsDeducted,
-                         transactionId: creditDeductionResult.transactionId,
-                        usedSimilarContent: generationResult.usedSimilarContent,
-                        similarContentId: generationResult.similarContentId,
-                        optimizationApplied: generationResult.usedSimilarContent,
-                        userPlan: planValidation.userPlan.planType,
-                        planLimits: planValidation.userPlan,
-                        tags: [subject, style, tone].filter(Boolean)
-                    };
-                    
-                    const historyResult = await contentHistoryService.saveContentToHistory(req.user.id, contentHistoryData);
-                    
-                    const assignment = {
-                        id: assignmentId,
-                        userId: req.user.id,
-                        prompt,
-                        content: citationData.processedContent,
-                        wordCount: contentHistoryData.finalWordCount,
-                        style,
-                        tone,
-                        subject: subject || 'General',
-                        additionalInstructions: additionalInstructions || '',
-                        status: 'completed',
-                        createdAt: new Date(),
-                        updatedAt: new Date(),
-                        contentHistoryId: historyResult.contentId,
-                        metadata: {
-                            chunksGenerated: generationResult.chunksGenerated,
-                            refinementCycles: generationResult.refinementCycles,
-                            generationTime: generationResult.generationTime,
-                            contentId: generationResult.contentId,
-                            usedSimilarContent: generationResult.usedSimilarContent,
-                            creditsUsed: creditDeductionResult.creditsDeducted,
-                             transactionId: creditDeductionResult.transactionId,
-                            citationsProcessed: citationData.requiresCitations,
-                            finalDetectionScore: finalDetectionResults.qualityScore,
-                            requiresReview: finalDetectionResults.requiresReview
-                        }
-                    };
-                    
-                    // Save to Firestore
-                    await db.collection('assignments').doc(assignmentId).set(assignment);
-                    
-                    res.json({
-                        success: true,
-                        assignment: {
-                            id: assignment.id,
-                            prompt: assignment.prompt,
-                            content: assignment.content,
-                            wordCount: assignment.wordCount,
-                            style: assignment.style,
-                            tone: assignment.tone,
-                            subject: assignment.subject,
-                            status: assignment.status,
-                            createdAt: assignment.createdAt,
-                            contentHistoryId: assignment.contentHistoryId,
-                            metadata: assignment.metadata
-                        },
-                        generationStats: {
-                            chunksGenerated: generationResult.chunksGenerated,
-                            refinementCycles: generationResult.refinementCycles,
-                            generationTime: generationResult.generationTime,
-                            creditsUsed: creditDeductionResult.creditsDeducted,
-                            usedSimilarContent: generationResult.usedSimilarContent
-                        },
-                        citationData: {
-                            requiresCitations: citationData.requiresCitations,
-                            citationStyle: citationStyle,
-                            citationCount: citationData.citationCount,
-                            bibliography: citationData.bibliography,
-                            inTextCitations: citationData.inTextCitations
-                        },
-                        finalDetectionResults: {
-                            originalityScore: finalDetectionResults.originalityScore,
-                            aiDetectionScore: finalDetectionResults.aiDetectionScore,
-                            plagiarismScore: finalDetectionResults.plagiarismScore,
-                            qualityScore: finalDetectionResults.qualityScore,
-                            severity: finalDetectionResults.severity,
-                            confidence: finalDetectionResults.confidence,
-                            requiresReview: finalDetectionResults.requiresReview,
-                            isAcceptable: finalDetectionResults.isAcceptable,
-                            recommendations: finalDetectionResults.recommendations
-                        }
-                    });
-                } catch (generationError) {
-                    console.error('Content generation failed, rolling back credits:', generationError);
-                    
-                    // Rollback credit deduction if generation fails
-                    try {
-                        await atomicCreditSystem.rollbackTransaction(
-                            req.user.id,
-                            creditDeductionResult.transactionId,
-                            creditDeductionResult.creditsDeducted,
-                            creditDeductionResult.wordsAllocated
-                        );
-                        console.log(`Credits rolled back for transaction: ${creditDeductionResult.transactionId}`);
-                    } catch (rollbackError) {
-                        console.error('Failed to rollback credits:', rollbackError);
+                        inTextCitations: citationData.inTextCitations
+                    },
+                    finalDetectionResults: {
+                        originalityScore: finalDetectionResults.originalityScore,
+                        aiDetectionScore: finalDetectionResults.aiDetectionScore,
+                        plagiarismScore: finalDetectionResults.plagiarismScore,
+                        qualityScore: finalDetectionResults.qualityScore,
+                        severity: finalDetectionResults.severity,
+                        confidence: finalDetectionResults.confidence,
+                        requiresReview: finalDetectionResults.requiresReview,
+                        isAcceptable: finalDetectionResults.isAcceptable,
+                        recommendations: finalDetectionResults.recommendations
                     }
-                    
-                    throw generationError;
-                }
+                });
             } catch (generationError) {
-                console.error('Content generation error:', generationError);
-                return res.status(500).json({ error: 'Failed to generate content' });
+                console.error('Content generation failed, rolling back credits:', generationError);
+                
+                // Rollback credit deduction if generation fails
+                try {
+                    await atomicCreditSystem.rollbackTransaction(
+                        userId,
+                        creditDeductionResult.transactionId,
+                        creditDeductionResult.creditsDeducted,
+                        creditDeductionResult.wordsAllocated
+                    );
+                    console.log(`Credits rolled back for transaction: ${creditDeductionResult.transactionId}`);
+                } catch (rollbackError) {
+                    console.error('Failed to rollback credits:', rollbackError);
+                }
+                
+                throw generationError;
             }
-        });
+        } catch (generationError) {
+            console.error('Content generation error:', generationError);
+            return res.status(500).json({ error: 'Failed to generate content' });
+        }
     } catch (error) {
         console.error('Server error:', error);
         res.status(500).json({ error: 'Internal server error' });

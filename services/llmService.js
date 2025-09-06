@@ -92,7 +92,6 @@ class LLMService {
      * Attempt LLM generation (single try)
      */
     async _attemptLLMGeneration(prompt, style, tone, wordCount, qualityTier = 'standard') {
-        // Use Gemini 2.5 Flash for standard tier, Gemini 2.5 Pro for premium
         if (!this.geminiApiKey) {
             throw new Error('Gemini API key not configured');
         }
@@ -107,7 +106,6 @@ class LLMService {
         const systemPrompt = this.buildSystemPrompt(style, tone, wordCount);
         const userPrompt = this.buildUserPrompt(prompt, wordCount);
         
-        // For standard tier: direct generation without detection
         const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
         
         const result = await model.generateContent(fullPrompt);
@@ -121,7 +119,22 @@ class LLMService {
     _generateFallbackContent(prompt, style, tone, wordCount, reason, error = null) {
         console.log(`Generating fallback content due to: ${reason}`);
         
-        const fallbackContent = this.generateMockContent(prompt, style, tone, wordCount);
+        // Generate minimal fallback content when API fails
+        const fallbackContent = `# ${this.extractTitle(prompt)}
+
+## Introduction
+
+This content addresses the topic of "${prompt.substring(0, 100)}..." with a focus on ${style.toLowerCase()} writing in a ${tone.toLowerCase()} tone.
+
+## Main Content
+
+Due to a temporary service issue, this is a simplified response. The content generation service will be restored shortly. Please try again in a few moments for full AI-powered content generation.
+
+## Conclusion
+
+This abbreviated response maintains the requested ${style} style and ${tone} tone while addressing the core topic. For complete content generation, please retry your request.
+
+Word count: Approximately ${Math.min(wordCount, 200)} words (fallback mode)`;
         
         return {
             content: fallbackContent,
@@ -258,154 +271,6 @@ Requirements:
             'Creative': 0.8   // More creative and varied
         };
         return temperatures[style] || 0.5;
-    }
-
-    /**
-     * Generate mock content for testing/fallback with enhanced quality
-     */
-    generateMockContent(prompt, style, tone, wordCount) {
-        const styleTemplates = {
-            Academic: {
-                introduction: "This comprehensive analysis examines",
-                body_starters: [
-                    "Research indicates that",
-                    "Studies have demonstrated",
-                    "Evidence suggests that",
-                    "Scholarly investigation reveals",
-                    "Academic literature supports"
-                ],
-                transitions: ["Furthermore,", "Additionally,", "Moreover,", "In contrast,", "Subsequently,", "Nevertheless,", "Consequently,"]
-            },
-            Business: {
-                introduction: "This strategic report outlines",
-                body_starters: [
-                    "Market analysis shows",
-                    "Industry trends indicate",
-                    "Performance metrics demonstrate",
-                    "Stakeholder feedback reveals",
-                    "Competitive analysis suggests"
-                ],
-                transitions: ["Therefore,", "As a result,", "Consequently,", "In addition,", "However,", "Furthermore,", "Nevertheless,"]
-            },
-            Creative: {
-                introduction: "Imagine a world where",
-                body_starters: [
-                    "In this realm,",
-                    "The landscape reveals",
-                    "Characters discover that",
-                    "The narrative unfolds as",
-                    "Within this setting,"
-                ],
-                transitions: ["Suddenly,", "Meanwhile,", "In that moment,", "As if by magic,", "Without warning,", "Unexpectedly,", "In the distance,"]
-            },
-            Casual: {
-                introduction: "Let's dive into",
-                body_starters: [
-                    "Here's the thing:",
-                    "What's interesting is",
-                    "You might be surprised that",
-                    "The reality is",
-                    "It turns out that"
-                ],
-                transitions: ["So,", "Also,", "Plus,", "But here's the thing,", "On the other hand,", "Actually,", "Honestly,"]
-            }
-        };
-
-        const template = styleTemplates[style] || styleTemplates.Academic;
-        const wordsPerSentence = this._getWordsPerSentence(style);
-        const targetSentences = Math.ceil(wordCount / wordsPerSentence);
-        const paragraphs = Math.max(3, Math.ceil(targetSentences / 4));
-        
-        let content = '';
-        let sentenceCount = 0;
-        
-        // Introduction paragraph
-        content += `${template.introduction} ${prompt}. `;
-        sentenceCount++;
-        
-        // Add introduction details
-        if (targetSentences > 3) {
-            content += `This ${style.toLowerCase()} examination provides comprehensive insights into the subject matter. `;
-            sentenceCount++;
-        }
-        
-        content += '\n\n';
-        
-        // Body paragraphs
-        for (let p = 1; p < paragraphs - 1 && sentenceCount < targetSentences - 2; p++) {
-            const starter = template.body_starters[p % template.body_starters.length];
-            content += `${starter} ${this._generateTopicSentence(prompt, style, tone)}. `;
-            sentenceCount++;
-            
-            // Add supporting sentences
-            const sentencesInParagraph = Math.min(3, targetSentences - sentenceCount - 2);
-            for (let s = 0; s < sentencesInParagraph; s++) {
-                const transition = template.transitions[s % template.transitions.length];
-                content += `${transition} ${this._generateSupportingSentence(prompt, style, tone)}. `;
-                sentenceCount++;
-            }
-            
-            content += '\n\n';
-        }
-        
-        // Conclusion paragraph
-        content += this._generateConclusion(prompt, style, tone);
-        
-        return content.trim();
-    }
-
-    /**
-     * Get appropriate words per sentence for style
-     */
-    _getWordsPerSentence(style) {
-        const wordsPerSentence = {
-            Academic: 18,
-            Business: 16,
-            Creative: 14,
-            Casual: 12
-        };
-        return wordsPerSentence[style] || 15;
-    }
-
-    /**
-     * Generate topic sentence
-     */
-    _generateTopicSentence(prompt, style, tone) {
-        const topics = [
-            `the fundamental aspects of ${prompt.toLowerCase()}`,
-            `key considerations regarding ${prompt.toLowerCase()}`,
-            `important implications of ${prompt.toLowerCase()}`,
-            `significant factors influencing ${prompt.toLowerCase()}`,
-            `critical elements within ${prompt.toLowerCase()}`
-        ];
-        return topics[Math.floor(Math.random() * topics.length)];
-    }
-
-    /**
-     * Generate supporting sentence
-     */
-    _generateSupportingSentence(prompt, style, tone) {
-        const supports = [
-            `this approach enhances understanding of the core concepts`,
-            `multiple perspectives contribute to a comprehensive analysis`,
-            `detailed examination reveals important patterns and trends`,
-            `systematic investigation provides valuable insights`,
-            `thorough evaluation demonstrates significant findings`
-        ];
-        return supports[Math.floor(Math.random() * supports.length)];
-    }
-
-    /**
-     * Generate conclusion
-     */
-    _generateConclusion(prompt, style, tone) {
-        const conclusions = {
-            Academic: `In conclusion, this comprehensive analysis of ${prompt.toLowerCase()} demonstrates the complexity and significance of the subject matter. The findings contribute to our understanding and provide a foundation for future research and investigation.`,
-            Business: `In summary, this examination of ${prompt.toLowerCase()} provides actionable insights and strategic recommendations. The analysis supports informed decision-making and effective implementation of proposed solutions.`,
-            Creative: `As our exploration of ${prompt.toLowerCase()} draws to a close, we discover that the journey itself has been as meaningful as the destination. The narrative continues to unfold, leaving us with lasting impressions and new possibilities.`,
-            Casual: `So there you have it - a complete look at ${prompt.toLowerCase()}. Hopefully this gives you a better understanding of the topic and maybe even sparks some new ideas for your own exploration.`
-        };
-        return conclusions[style] || conclusions.Academic;
     }
 
     /**
