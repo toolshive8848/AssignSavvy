@@ -108,6 +108,8 @@ class AtomicCreditSystem {
             // Update user credits
             transaction.update(userRef, {
                 credits: newCreditBalance,
+                totalCreditsUsed: admin.firestore.FieldValue.increment(requiredCredits),
+                totalWordsGenerated: admin.firestore.FieldValue.increment(requestedWordCount),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
             
