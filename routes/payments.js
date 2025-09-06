@@ -176,43 +176,63 @@ router.get('/history/:userId', async (req, res) => {
 
 async function handleSuccessfulPayment(paymentIntent) {
     try {
-        const { userId, credits } = paymentIntent.metadata;
-        const creditsToAdd = parseInt(credits);
-        const userIdInt = parseInt(userId);
+        const { userId, plan } = paymentIntent.metadata;
         
-        // Add credits to user account
-        await new Promise((resolve, reject) => {
-            db.run(
-                'UPDATE users SET credits = credits + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                [creditsToAdd, userIdInt],
-                function(err) {
-                    if (err) {
-                        console.error('Error updating user credits:', err);
-                        reject(err);
-                        return;
-                    }
-                    console.log(`Successfully added ${creditsToAdd} credits to user ${userIdInt}`);
-                    resolve();
-                }
-            );
+        if (!userId || !plan) {
+            console.error('Missing metadata in payment intent:', paymentIntent.metadata);
+            return;
+        }
+        
+        // Determine credits based on plan
+        const planCredits = {
+            'pro': 2000,
+            'custom': 3300
+        };
+        
+        const creditsToAdd = planCredits[plan];
+        if (!creditsToAdd) {
+            console.error('Unknown plan type:', plan);
+            return;
+        }
+        
+        // Add credits to user account in Firestore
+        const userRef = admin.firestore().collection('users').doc(userId);
+        
+        await admin.firestore().runTransaction(async (transaction) => {
+            const userDoc = await transaction.get(userRef);
+            
+            if (!userDoc.exists) {
+                throw new Error(`User ${userId} not found`);
+            }
+            
+            const userData = userDoc.data();
+            const currentCredits = userData.credits || 0;
+            const newCredits = currentCredits + creditsToAdd;
+            
+            // Update user with new credits and plan
+            transaction.update(userRef, {
+                credits: newCredits,
+                plan: plan,
+                isPremium: true,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            
+            console.log(`Successfully added ${creditsToAdd} credits to user ${userId}. New balance: ${newCredits}`);
         });
         
-        // Record payment in database
-        await new Promise((resolve, reject) => {
-            db.run(
-                'INSERT INTO payments (user_id, amount, currency, status, stripe_payment_intent_id, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
-                [userIdInt, paymentIntent.amount / 100, paymentIntent.currency, 'completed', paymentIntent.id],
-                function(err) {
-                    if (err) {
-                        console.error('Error recording payment:', err);
-                        reject(err);
-                        return;
-                    }
-                    console.log(`Payment recorded for user ${userIdInt}: ${paymentIntent.amount / 100} ${paymentIntent.currency}`);
-                    resolve();
-                }
-            );
+        // Record payment in Firestore
+        await admin.firestore().collection('payments').add({
+            userId: userId,
+            plan: plan,
+            amount: paymentIntent.amount / 100,
+            currency: paymentIntent.currency,
+            status: 'completed',
+            stripePaymentIntentId: paymentIntent.id,
+            creditsAdded: creditsToAdd,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
+        
+        console.log(`Payment recorded for user ${userId}: ${paymentIntent.amount / 100} ${paymentIntent.currency}, ${creditsToAdd} credits added`);
         
     } catch (error) {
         console.error('Error handling successful payment:', error);
