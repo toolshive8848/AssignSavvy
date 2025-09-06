@@ -621,6 +621,31 @@ class DetectorService {
       throw error;
     }
   }
+  
+  /**
+   * Calculate improvement summary between initial and final detection
+   */
+  calculateImprovementSummary(initialResults, finalResults) {
+    const summary = {
+      plagiarismReduced: 0,
+      aiContentReduced: 0,
+      readabilityImproved: 0
+    };
+    
+    if (initialResults.plagiarism && finalResults.plagiarism) {
+      summary.plagiarismReduced = Math.max(0, initialResults.plagiarism.score - finalResults.plagiarism.score);
+    }
+    
+    if (initialResults.aiContent && finalResults.aiContent) {
+      summary.aiContentReduced = Math.max(0, initialResults.aiContent.score - finalResults.aiContent.score);
+    }
+    
+    if (initialResults.readability && finalResults.readability) {
+      summary.readabilityImproved = Math.max(0, initialResults.readability.fleschKincaidGrade - finalResults.readability.fleschKincaidGrade);
+    }
+    
+    return summary;
+  }
 
   /**
    * Get detection history for user

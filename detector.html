@@ -560,6 +560,14 @@
         }
       }
       
+      function checkIfHasIssues(results) {
+        return (
+          (results.plagiarism && results.plagiarism.score > 30) ||
+          (results.aiContent && results.aiContent.score > 70) ||
+          (results.readability && results.readability.fleschKincaidGrade > 12)
+        );
+      }
+      
       function showAnalysisLoading(message) {
         document.getElementById('no-results').style.display = 'none';
         document.getElementById('results-container').style.display = 'none';
