@@ -230,6 +230,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
                     creditsNeeded,
                     wordCount
                 );
+                console.log(`Credits refunded to user ${userId}: ${creditsNeeded} credits`);
             } catch (rollbackError) {
                 console.error('Credit rollback failed:', rollbackError);
             }
@@ -237,7 +238,8 @@ router.post('/generate', authenticateToken, async (req, res) => {
             return res.status(500).json({
                 success: false,
                 error: 'Content generation failed',
-                details: generationError.message
+                details: generationError.message,
+                creditsRefunded: true
             });
         }
         
