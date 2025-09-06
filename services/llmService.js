@@ -41,8 +41,8 @@ class LLMService {
 
         // Check circuit breaker
         if (this._isCircuitOpen()) {
-            console.warn('Circuit breaker is open, using fallback immediately');
-            return this._generateFallbackContent(prompt, style, tone, wordCount, 'circuit_breaker');
+            console.error('Circuit breaker is open, service temporarily unavailable');
+            throw new Error('Content generation service is temporarily unavailable. Please try again in a few minutes.');
         }
 
         // Try primary LLM service with retries
@@ -148,33 +148,11 @@ class LLMService {
      * Generate fallback content when LLM fails
      */
     _generateFallbackContent(prompt, style, tone, wordCount, reason, error = null) {
-        console.log(`Generating fallback content due to: ${reason}`);
+        console.error(`LLM service failed due to: ${reason}`, error?.message);
         
-        // Generate minimal fallback content when API fails
-        const fallbackContent = `# ${this.extractTitle(prompt)}
-
-## Introduction
-
-This content addresses the topic of "${prompt.substring(0, 100)}..." with a focus on ${style.toLowerCase()} writing in a ${tone.toLowerCase()} tone.
-
-## Main Content
-
-Due to a temporary service issue, this is a simplified response. The content generation service will be restored shortly. Please try again in a few moments for full AI-powered content generation.
-
-## Conclusion
-
-This abbreviated response maintains the requested ${style} style and ${tone} tone while addressing the core topic. For complete content generation, please retry your request.
-
-Word count: Approximately ${Math.min(wordCount, 200)} words (fallback mode)`;
-        
-        return {
-            content: fallbackContent,
-            source: 'fallback',
-            reason: reason,
-            error: error?.message,
-            fallbackUsed: true,
-            generationTime: 0
-        };
+        // NEVER return mock content - this would charge users for fake service
+        // Instead, throw an error so credits can be refunded
+        throw new Error(`Content generation failed: ${reason}. ${error?.message || 'Please try again.'}`);
     }
 
     /**
@@ -348,8 +326,8 @@ Polished Content:`;
             try {
                 polishedContent = await this._attemptLLMGeneration(polishPrompt, style, tone, wordCount, qualityTier);
             } catch (error) {
-                console.warn('LLM polishing failed, using enhanced fallback:', error.message);
-                polishedContent = this._generatePolishedFallback(baseContent, prompt, style, tone, wordCount);
+                console.error('LLM polishing failed:', error.message);
+                throw new Error(`Content polishing failed: ${error.message}`);
             }
             
             return {
@@ -362,41 +340,10 @@ Polished Content:`;
             
         } catch (error) {
             console.error('Error polishing existing content:', error);
-            
-            // Fallback to enhanced content generation
-            return this._generateFallbackContent(prompt, style, tone, wordCount, 'polishing_error', error);
+            throw error;
         }
     }
     
-    /**
-     * Generate enhanced fallback for polished content
-     */
-    _generatePolishedFallback(baseContent, prompt, style, tone, wordCount) {
-        // Extract key concepts from base content
-        const sentences = baseContent.split(/[.!?]+/).filter(s => s.trim().length > 10);
-        const keyConcepts = sentences.slice(0, 3).map(s => s.trim());
-        
-        // Generate new content incorporating key concepts
-        let polishedContent = this.generateMockContent(prompt, style, tone, wordCount);
-        
-        // Try to incorporate key concepts from original content
-        if (keyConcepts.length > 0) {
-            const conceptIntegration = keyConcepts.join('. ');
-            polishedContent = polishedContent.replace(
-                /This comprehensive analysis examines/,
-                `Building upon previous insights, this analysis examines`
-            );
-            
-            // Add a paragraph incorporating original concepts
-            const paragraphs = polishedContent.split('\n\n');
-            if (paragraphs.length > 2) {
-                paragraphs.splice(2, 0, `Previous research has established that ${conceptIntegration}. These foundational insights provide valuable context for understanding the current analysis.`);
-                polishedContent = paragraphs.join('\n\n');
-            }
-        }
-        
-        return polishedContent;
-    }
 
     /**
      * Get service health status
