@@ -4,48 +4,86 @@
  */
 class UserSessionManager {
     constructor() {
-        this.defaultUser = {
-            name: 'User Name',
-            email: 'john.doe@example.com',
-            plan: 'free', // 'free', 'pro', or 'custom'
-            credits: 145,
-            maxCredits: 200
-        };
-        
-        this.currentUser = this.loadUserData();
+        this.currentUser = null;
+        this.isAuthenticated = false;
     }
 
     /**
-     * Load user data from localStorage or use default
+     * Load user data from localStorage
      */
     loadUserData() {
         try {
-            // First try to load from 'user' key (set during login/signup)
-            let storedUser = localStorage.getItem('user');
-            if (storedUser) {
-                const userData = JSON.parse(storedUser);
-                // Convert to our format and save to 'userData' for consistency
-                const formattedData = {
-                    name: userData.name || this.defaultUser.name,
-                    email: userData.email || this.defaultUser.email,
-                    plan: userData.plan || 'free',
-                    credits: userData.credits || this.defaultUser.credits,
-                    maxCredits: userData.plan === 'pro' ? 1000 : userData.plan === 'custom' ? 2000 : 200
-                };
-                localStorage.setItem('userData', JSON.stringify(formattedData));
-                return formattedData;
+            const authToken = localStorage.getItem('authToken');
+            const userData = localStorage.getItem('userData');
+            
+            if (!authToken || !userData) {
+                this.isAuthenticated = false;
+                return null;
             }
             
-            // Fallback to 'userData' key
-            storedUser = localStorage.getItem('userData');
-            if (storedUser) {
-                const userData = JSON.parse(storedUser);
-                return { ...this.defaultUser, ...userData };
-            }
+            const user = JSON.parse(userData);
+            this.isAuthenticated = true;
+            return user;
         } catch (error) {
-            console.warn('Failed to load user data from localStorage:', error);
+            console.warn('Failed to load user data:', error);
+            this.isAuthenticated = false;
+            return null;
         }
-        return { ...this.defaultUser };
+    }
+
+    /**
+     * Check if user is authenticated
+     */
+    isUserAuthenticated() {
+        const token = localStorage.getItem('authToken');
+        return !!token && this.isAuthenticated;
+    }
+
+    /**
+     * Redirect to login if not authenticated
+     */
+    requireAuthentication() {
+        if (!this.isUserAuthenticated()) {
+            window.location.href = 'auth.html';
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Fetch real user data from backend
+     */
+    async fetchUserData() {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                throw new Error('No authentication token');
+            }
+            
+            const response = await fetch('/api/users/profile', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch user data');
+            }
+            
+            const userData = await response.json();
+            
+            // Update local storage and current user
+            localStorage.setItem('userData', JSON.stringify(userData));
+            this.currentUser = userData;
+            this.isAuthenticated = true;
+            
+            return userData;
+        } catch (error) {
+            console.error('Failed to fetch user data:', error);
+            this.logout();
+            throw error;
+        }
     }
 
     /**
@@ -63,20 +101,46 @@ class UserSessionManager {
      * Get current user data
      */
     getCurrentUser() {
-        return { ...this.currentUser };
+        if (!this.currentUser) {
+            this.currentUser = this.loadUserData();
+        }
+        return this.currentUser ? { ...this.currentUser } : null;
     }
 
     /**
      * Update user data
      */
     updateUser(userData) {
-        this.currentUser = { ...this.currentUser, ...userData };
+        if (!this.currentUser) {
+            this.currentUser = this.loadUserData();
+        }
+        
+        if (this.currentUser) {
+            this.currentUser = { ...this.currentUser, ...userData };
+        } else {
+            this.currentUser = userData;
+        }
+        
         this.saveUserData();
         this.updateAllDisplays();
         
         // Log credit updates for debugging
         if (userData.credits !== undefined) {
-            console.log(`User credits updated: ${userData.credits}/${this.currentUser.maxCredits}`);
+            const maxCredits = this.getMaxCredits();
+            console.log(`User credits updated: ${userData.credits}/${maxCredits}`);
+        }
+    }
+
+    /**
+     * Get max credits based on plan
+     */
+    getMaxCredits() {
+        if (!this.currentUser) return 200;
+        
+        switch (this.currentUser.plan) {
+            case 'pro': return 2000;
+            case 'custom': return 3300;
+            default: return 200;
         }
     }
 
@@ -84,6 +148,8 @@ class UserSessionManager {
      * Get formatted plan display text
      */
     getPlanDisplayText() {
+        if (!this.currentUser) return 'Not Logged In';
+        
         switch (this.currentUser.plan) {
             case 'free':
                 return 'Free Plan';
@@ -100,13 +166,21 @@ class UserSessionManager {
      * Get formatted credits display text
      */
     getCreditsDisplayText() {
-        return `${this.currentUser.credits}/${this.currentUser.maxCredits} Credits`;
+        if (!this.currentUser) return '0/0 Credits';
+        
+        const maxCredits = this.getMaxCredits();
+        return `${this.currentUser.credits || 0}/${maxCredits} Credits`;
     }
 
     /**
      * Update all user displays on the current page
      */
     updateAllDisplays() {
+        if (!this.currentUser) {
+            this.showNotLoggedInState();
+            return;
+        }
+        
         // Update sidebar user info
         const userNameEl = document.getElementById('user-name');
         const userPlanEl = document.getElementById('user-plan');
@@ -129,11 +203,33 @@ class UserSessionManager {
     }
 
     /**
+     * Show not logged in state
+     */
+    showNotLoggedInState() {
+        const userNameEl = document.getElementById('user-name');
+        const userPlanEl = document.getElementById('user-plan');
+        const userCreditsEl = document.getElementById('user-credits');
+        
+        if (userNameEl) userNameEl.textContent = 'Not Logged In';
+        if (userPlanEl) userPlanEl.textContent = 'No Plan';
+        if (userCreditsEl) userCreditsEl.textContent = '0/0 Credits';
+    }
+
+    /**
      * Initialize user session on page load
      */
-    init() {
+    async init() {
         // Reload user data from localStorage in case it was updated
         this.currentUser = this.loadUserData();
+        
+        // If user data exists, try to fetch fresh data from backend
+        if (this.currentUser && this.isUserAuthenticated()) {
+            try {
+                await this.fetchUserData();
+            } catch (error) {
+                console.warn('Failed to fetch fresh user data:', error);
+            }
+        }
         
         // Wait for DOM to be ready
         if (document.readyState === 'loading') {
@@ -150,8 +246,11 @@ class UserSessionManager {
      */
     logout() {
         if (confirm('Are you sure you want to logout?')) {
-            localStorage.removeItem('userToken');
+            localStorage.removeItem('authToken');
             localStorage.removeItem('userData');
+            localStorage.removeItem('user');
+            this.currentUser = null;
+            this.isAuthenticated = false;
             window.location.href = 'auth.html';
         }
     }
