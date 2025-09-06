@@ -167,7 +167,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
         
         // Calculate credits needed based on quality tier
         // Standard: 1 credit per 3 words, Premium: 2x credits (2 credits per 3 words)
-        let baseCreditsNeeded = atomicCreditSystem.calculateRequiredCredits(wordCount, 'writing');
+        let baseCreditsNeeded = Math.ceil(wordCount / 3); // 1 credit per 3 words
         const creditsNeeded = qualityTier === 'premium' ? baseCreditsNeeded * 2 : baseCreditsNeeded;
         
         // Deduct credits atomically
@@ -450,7 +450,7 @@ router.post('/upload-and-generate', authenticateToken, upload.array('files', 5),
         
         // Calculate credits needed based on quality tier
         // Standard: 1 credit per 3 words, Premium: 2x credits (2 credits per 3 words)
-        let baseCreditsNeeded = atomicCreditSystem.calculateRequiredCredits(wordCount, 'writing');
+        let baseCreditsNeeded = Math.ceil(wordCount / 3); // 1 credit per 3 words
         const creditsNeeded = qualityTier === 'premium' ? baseCreditsNeeded * 2 : baseCreditsNeeded;
         
         // Deduct credits atomically
