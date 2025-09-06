@@ -15,8 +15,8 @@ class PromptEngineerService {
         
         // Credit ratios for prompt engineer tool
         this.CREDIT_RATIOS = {
-            input: 20,  // 1 credit = 20 words for input
-            output: 10  // 1 credit = 10 words for output
+            input: 10,  // 1 credit = 10 words for input
+            output: 5   // 1 credit = 5 words for output
         };
         
         // One-time limits for both free and paid users
@@ -30,8 +30,8 @@ class PromptEngineerService {
      * Calculate credits needed for input and output words
      */
     calculateCreditsNeeded(inputWords, outputWords) {
-        const inputCredits = Math.ceil(inputWords / 20);  // 1 credit per 20 input words
-        const outputCredits = Math.ceil(outputWords / 10); // 1 credit per 10 output words
+        const inputCredits = Math.ceil(inputWords / 10);  // 1 credit per 10 input words
+        const outputCredits = Math.ceil(outputWords / 5); // 1 credit per 5 output words
         return inputCredits + outputCredits;
     }
 

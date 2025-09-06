@@ -12,7 +12,8 @@ class AtomicCreditSystem {
             research: 5,   // 1 credit per 5 words for research
             detector: 10,  // 1 credit per 10 words for detection
             detector_generation: 5, // 1 credit per 5 words for detector generation/removal
-            prompt: 100    // 1 credit per 100 words for prompt engineer (after daily limit)
+            prompt_input: 10,  // 1 credit per 10 words for prompt engineer input
+            prompt_output: 5   // 1 credit per 5 words for prompt engineer output
         };
         this.MAX_RETRY_ATTEMPTS = 3;
         this.RETRY_DELAY_MS = 100;
