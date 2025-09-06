@@ -253,4 +253,80 @@ router.get('/transactions', authenticateToken, async (req, res) => {
     }
 });
 
+// Get user notifications
+router.get('/notifications', authenticateToken, (req, res) => {
+    const userId = req.user.userId;
+    const db = req.app.locals.db;
+
+    // Get recent activity for notifications
+    db.all(`
+        SELECT 
+            'assignment' as type,
+            title as message,
+            created_at as timestamp
+        FROM assignments 
+        WHERE user_id = ? AND created_at >= datetime('now', '-7 days')
+        ORDER BY created_at DESC 
+        LIMIT 5
+    `, [userId], (err, notifications) => {
+        if (err) {
+            console.error('Database error:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+
+        // Format notifications
+        const formattedNotifications = notifications.map(notification => ({
+            message: `Assignment "${notification.message}" completed`,
+            timestamp: notification.timestamp,
+            type: notification.type
+        }));
+
+        res.json({
+            success: true,
+            notifications: formattedNotifications,
+            count: formattedNotifications.length
+        });
+    });
+});
+
+// Get daily tool statistics
+router.get('/tool-stats', authenticateToken, (req, res) => {
+    const userId = req.user.userId;
+    const { date } = req.query;
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    const db = req.app.locals.db;
+
+    // Get today's statistics across all tools
+    db.all(`
+        SELECT 
+            COUNT(*) as assignments_today,
+            COALESCE(SUM(word_count), 0) as words_today,
+            COALESCE(SUM(credits_used), 0) as credits_today
+        FROM assignments 
+        WHERE user_id = ? AND DATE(created_at) = ?
+    `, [userId, targetDate], (err, results) => {
+        if (err) {
+            console.error('Database error:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+
+        const stats = results[0] || {
+            assignments_today: 0,
+            words_today: 0,
+            credits_today: 0
+        };
+
+        res.json({
+            success: true,
+            date: targetDate,
+            stats: {
+                assignmentsToday: stats.assignments_today,
+                wordsToday: stats.words_today,
+                creditsToday: stats.credits_today,
+                timeSavedToday: Math.round(stats.words_today / 1000) // 1 hour per 1000 words
+            }
+        });
+    });
+});
+
 module.exports = router;

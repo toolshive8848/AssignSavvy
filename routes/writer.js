@@ -37,7 +37,7 @@ const upload = multer({
     }
 });
 
-// Mock function for assignment generation (to be replaced with actual implementation)
+// Mock function for assignment generation
 const generateAssignmentContent = async (title, prompt, wordCount, citationStyle) => {
     const mockContent = `
 # ${title}
@@ -52,11 +52,9 @@ The central theme of this assignment revolves around understanding the complexit
 
 ### Key Points
 
-1. **Primary Analysis**: The first major point addresses the fundamental aspects of the topic, providing essential background information necessary for deeper understanding.
-
-2. **Secondary Considerations**: Building upon the primary analysis, this section explores additional factors that contribute to the overall complexity of the subject.
-
-3. **Critical Evaluation**: This section presents a critical assessment of the various viewpoints and approaches discussed in the literature.
+1. **Primary Analysis**: The first major point addresses the fundamental aspects of the topic.
+2. **Secondary Considerations**: Additional factors that influence the overall understanding.
+3. **Implications**: The broader impact and significance of these findings.
 
 ## Conclusion
 

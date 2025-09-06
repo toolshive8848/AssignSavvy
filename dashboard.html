@@ -413,7 +413,7 @@
       <!-- Welcome Card -->
       <div class="welcome-card">
         <div class="welcome-content">
-          <h2>Welcome back, John! 👋</h2>
+          <h2 id="welcome-message">Welcome back! 👋</h2>
           <p>Ready to boost your productivity and create amazing content today?</p>
           <div class="welcome-actions">
             <a href="writer.html" class="welcome-btn primary">
@@ -441,9 +441,9 @@
             </div>
           </div>
           <div class="stat-title">Words Generated</div>
-          <div class="stat-value">12,450</div>
-          <div class="stat-change positive">
-            <i class="fas fa-arrow-up"></i> 12% from last week
+          <div class="stat-value" id="total-words">0</div>
+          <div class="stat-change" id="words-change">
+            <i class="fas fa-minus"></i> No data yet
           </div>
         </div>
         
@@ -454,9 +454,9 @@
             </div>
           </div>
           <div class="stat-title">Projects Completed</div>
-          <div class="stat-value">24</div>
-          <div class="stat-change positive">
-            <i class="fas fa-arrow-up"></i> 8% from last week
+          <div class="stat-value" id="total-projects">0</div>
+          <div class="stat-change" id="projects-change">
+            <i class="fas fa-minus"></i> No data yet
           </div>
         </div>
         
@@ -467,9 +467,9 @@
             </div>
           </div>
           <div class="stat-title">Credits Used</div>
-          <div class="stat-value">145/200</div>
-          <div class="stat-change negative">
-            <i class="fas fa-arrow-up"></i> 25% from last week
+          <div class="stat-value" id="credits-used">0</div>
+          <div class="stat-change" id="credits-change">
+            <i class="fas fa-minus"></i> No data yet
           </div>
         </div>
         
@@ -480,9 +480,9 @@
             </div>
           </div>
           <div class="stat-title">Time Saved</div>
-          <div class="stat-value">18h</div>
-          <div class="stat-change positive">
-            <i class="fas fa-arrow-up"></i> 15% from last week
+          <div class="stat-value" id="time-saved">0h</div>
+          <div class="stat-change" id="time-change">
+            <i class="fas fa-minus"></i> No data yet
           </div>
         </div>
       </div>
@@ -512,7 +512,7 @@
           <div class="tool-stats">
             <span class="tool-stat">
               <i class="fas fa-file-text"></i>
-              2.4k words today
+              <span id="writer-words-today">0 words today</span>
             </span>
           </div>
         </div>
@@ -532,7 +532,7 @@
           <div class="tool-stats">
             <span class="tool-stat">
               <i class="fas fa-search"></i>
-              15 sources found
+              <span id="research-sources-today">0 sources found</span>
             </span>
           </div>
         </div>
@@ -552,7 +552,7 @@
           <div class="tool-stats">
             <span class="tool-stat">
               <i class="fas fa-check-circle"></i>
-              98% original
+              <span id="detector-avg-score">No data</span>
             </span>
           </div>
         </div>
@@ -572,7 +572,7 @@
           <div class="tool-stats">
             <span class="tool-stat">
               <i class="fas fa-magic"></i>
-              12 prompts optimized
+              <span id="prompts-optimized-today">0 prompts optimized</span>
             </span>
           </div>
         </div>
@@ -1016,32 +1016,250 @@
     }
   </style>
 
-  <script>
-    // User profile functionality
-    let currentUser = {
-      name: 'User Name',
-      email: 'john.doe@example.com',
-      plan: 'pro',
-      credits: 145,
-      maxCredits: 200
-    };
+    // API helper functions
+    function getAuthToken() {
+      return localStorage.getItem('authToken') || 'mock-token';
+    }
 
-    function loadUserProfile() {
-      // Update sidebar user info
-      document.getElementById('user-name').textContent = currentUser.name;
-      document.getElementById('user-plan').textContent = currentUser.plan === 'free' ? 'Free Plan' : 'Pro Plan';
-      document.getElementById('user-credits').textContent = `${currentUser.credits}/${currentUser.maxCredits} Credits`;
-      
-      // Update modal user info
-      document.getElementById('modal-user-name').textContent = currentUser.name;
-      document.getElementById('modal-user-email').textContent = currentUser.email;
-      document.getElementById('modal-user-plan').textContent = currentUser.plan === 'free' ? 'Free Plan' : 'Pro Plan';
+    async function makeAuthenticatedRequest(url, options = {}) {
+      const token = getAuthToken();
+      return fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          ...options.headers
+        }
+      });
+    }
+
+    // Load real user data and statistics
+    async function loadDashboardData() {
+      try {
+        // Load user profile
+        const profileResponse = await makeAuthenticatedRequest('/api/users/profile');
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          updateUserProfile(profileData);
+          updateWelcomeMessage(profileData.name);
+        }
+
+        // Load user statistics
+        const statsResponse = await makeAuthenticatedRequest('/api/users/stats');
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          updatePerformanceMetrics(statsData);
+        }
+
+        // Load tool usage statistics
+        await loadToolStatistics();
+
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        showErrorMessage('Failed to load dashboard data. Please refresh the page.');
+      }
     }
 
     function updateUserProfile(userData) {
-      // Update user profile data
-      currentUser = { ...currentUser, ...userData };
-      loadUserProfile();
+      if (window.userSession) {
+        window.userSession.updateUser({
+          name: userData.name,
+          email: userData.email,
+          plan: userData.isPremium ? 'pro' : 'free',
+          credits: userData.credits,
+          maxCredits: userData.isPremium ? 2000 : 200
+        });
+      }
+    }
+
+    function updateWelcomeMessage(userName) {
+      const welcomeMessage = document.getElementById('welcome-message');
+      if (welcomeMessage && userName) {
+        welcomeMessage.textContent = `Welcome back, ${userName}! 👋`;
+      }
+    }
+
+    function updatePerformanceMetrics(statsData) {
+      // Update total words generated
+      const totalWordsEl = document.getElementById('total-words');
+      if (totalWordsEl) {
+        const totalWords = statsData.allTime?.totalWordsGenerated || 0;
+        totalWordsEl.textContent = formatNumber(totalWords);
+      }
+
+      // Update projects completed
+      const totalProjectsEl = document.getElementById('total-projects');
+      if (totalProjectsEl) {
+        const totalProjects = statsData.allTime?.totalAssignments || 0;
+        totalProjectsEl.textContent = totalProjects;
+      }
+
+      // Update credits used
+      const creditsUsedEl = document.getElementById('credits-used');
+      if (creditsUsedEl) {
+        const creditsUsed = statsData.allTime?.totalCreditsUsed || 0;
+        creditsUsedEl.textContent = formatNumber(creditsUsed);
+      }
+
+      // Update time saved (estimate: 1 hour saved per 1000 words)
+      const timeSavedEl = document.getElementById('time-saved');
+      if (timeSavedEl) {
+        const totalWords = statsData.allTime?.totalWordsGenerated || 0;
+        const hoursSaved = Math.round(totalWords / 1000);
+        timeSavedEl.textContent = `${hoursSaved}h`;
+      }
+
+      // Update change indicators
+      updateChangeIndicators(statsData);
+    }
+
+    function updateChangeIndicators(statsData) {
+      const allTime = statsData.allTime || {};
+      const thisMonth = statsData.thisMonth || {};
+
+      // Words change
+      const wordsChangeEl = document.getElementById('words-change');
+      if (wordsChangeEl) {
+        const monthlyWords = thisMonth.totalWordsGenerated || 0;
+        if (monthlyWords > 0) {
+          wordsChangeEl.innerHTML = `<i class="fas fa-arrow-up"></i> ${formatNumber(monthlyWords)} this month`;
+          wordsChangeEl.className = 'stat-change positive';
+        } else {
+          wordsChangeEl.innerHTML = `<i class="fas fa-minus"></i> No activity this month`;
+          wordsChangeEl.className = 'stat-change';
+        }
+      }
+
+      // Projects change
+      const projectsChangeEl = document.getElementById('projects-change');
+      if (projectsChangeEl) {
+        const monthlyProjects = thisMonth.totalAssignments || 0;
+        if (monthlyProjects > 0) {
+          projectsChangeEl.innerHTML = `<i class="fas fa-arrow-up"></i> ${monthlyProjects} this month`;
+          projectsChangeEl.className = 'stat-change positive';
+        } else {
+          projectsChangeEl.innerHTML = `<i class="fas fa-minus"></i> No projects this month`;
+          projectsChangeEl.className = 'stat-change';
+        }
+      }
+
+      // Credits change
+      const creditsChangeEl = document.getElementById('credits-change');
+      if (creditsChangeEl) {
+        const monthlyCredits = thisMonth.creditsUsed || 0;
+        if (monthlyCredits > 0) {
+          creditsChangeEl.innerHTML = `<i class="fas fa-arrow-up"></i> ${formatNumber(monthlyCredits)} this month`;
+          creditsChangeEl.className = 'stat-change negative';
+        } else {
+          creditsChangeEl.innerHTML = `<i class="fas fa-minus"></i> No usage this month`;
+          creditsChangeEl.className = 'stat-change';
+        }
+      }
+
+      // Time change
+      const timeChangeEl = document.getElementById('time-change');
+      if (timeChangeEl) {
+        const monthlyWords = thisMonth.totalWordsGenerated || 0;
+        const monthlyHours = Math.round(monthlyWords / 1000);
+        if (monthlyHours > 0) {
+          timeChangeEl.innerHTML = `<i class="fas fa-arrow-up"></i> ${monthlyHours}h this month`;
+          timeChangeEl.className = 'stat-change positive';
+        } else {
+          timeChangeEl.innerHTML = `<i class="fas fa-minus"></i> No time saved this month`;
+          timeChangeEl.className = 'stat-change';
+        }
+      }
+    }
+
+    async function loadToolStatistics() {
+      try {
+        // Load today's usage for each tool
+        const today = new Date().toISOString().split('T')[0];
+
+        // Writer statistics
+        const writerResponse = await makeAuthenticatedRequest(`/api/writer/stats?date=${today}`);
+        if (writerResponse.ok) {
+          const writerData = await writerResponse.json();
+          const writerWordsEl = document.getElementById('writer-words-today');
+          if (writerWordsEl) {
+            const wordsToday = writerData.wordsToday || 0;
+            writerWordsEl.textContent = `${formatNumber(wordsToday)} words today`;
+          }
+        }
+
+        // Research statistics
+        const researchResponse = await makeAuthenticatedRequest(`/api/research/stats?date=${today}`);
+        if (researchResponse.ok) {
+          const researchData = await researchResponse.json();
+          const researchSourcesEl = document.getElementById('research-sources-today');
+          if (researchSourcesEl) {
+            const sourcesToday = researchData.sourcesToday || 0;
+            researchSourcesEl.textContent = `${sourcesToday} sources found`;
+          }
+        }
+
+        // Detector statistics
+        const detectorResponse = await makeAuthenticatedRequest(`/api/detector/stats?date=${today}`);
+        if (detectorResponse.ok) {
+          const detectorData = await detectorResponse.json();
+          const detectorScoreEl = document.getElementById('detector-avg-score');
+          if (detectorScoreEl) {
+            const avgScore = detectorData.averageOriginalityScore;
+            if (avgScore !== null && avgScore !== undefined) {
+              detectorScoreEl.textContent = `${Math.round(avgScore)}% avg originality`;
+            } else {
+              detectorScoreEl.textContent = 'No analyses today';
+            }
+          }
+        }
+
+        // Prompt Engineer statistics
+        const promptResponse = await makeAuthenticatedRequest(`/api/prompt/stats?date=${today}`);
+        if (promptResponse.ok) {
+          const promptData = await promptResponse.json();
+          const promptsOptimizedEl = document.getElementById('prompts-optimized-today');
+          if (promptsOptimizedEl) {
+            const optimizedToday = promptData.optimizedToday || 0;
+            promptsOptimizedEl.textContent = `${optimizedToday} prompts optimized`;
+          }
+        }
+
+      } catch (error) {
+        console.error('Error loading tool statistics:', error);
+      }
+    }
+
+    function formatNumber(num) {
+      if (num >= 1000000) {
+        return (num / 1000000).toFixed(1) + 'M';
+      } else if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'k';
+      }
+      return num.toString();
+    }
+
+    function showErrorMessage(message) {
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'alert alert-error';
+      errorDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #ef4444;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        z-index: 1000;
+        max-width: 300px;
+      `;
+      errorDiv.textContent = message;
+      document.body.appendChild(errorDiv);
+      
+      setTimeout(() => {
+        if (errorDiv.parentNode) {
+          errorDiv.parentNode.removeChild(errorDiv);
+        }
+      }, 5000);
     }
 
     function logout() {
@@ -1064,8 +1282,8 @@
 
     // Sidebar toggle functionality
     document.addEventListener('DOMContentLoaded', function() {
-      // Load user profile data
-      loadUserProfile();
+      // Load real dashboard data
+      loadDashboardData();
       
       // User profile modal functionality
       const userProfileCard = document.getElementById('user-profile-card');
@@ -1093,16 +1311,7 @@
       
       // Notification button functionality
       notificationBtn.addEventListener('click', function() {
-        // Toggle notification badge visibility
-        const badge = this.querySelector('.notification-badge');
-        if (badge.style.display === 'none') {
-          badge.style.display = 'block';
-        } else {
-          badge.style.display = 'none';
-        }
-        
-        // Show notification dropdown or modal (placeholder functionality)
-        alert('Notifications: You have 3 new updates!\n\n1. New AI Writer features available\n2. Your research project was saved\n3. Credit balance updated');
+        loadNotifications();
       });
       
       // Toggle sidebar on button click
@@ -1150,6 +1359,45 @@
         });
       });
     });
+
+    async function loadNotifications() {
+      try {
+        const response = await makeAuthenticatedRequest('/api/users/notifications');
+        if (response.ok) {
+          const data = await response.json();
+          displayNotifications(data.notifications || []);
+        } else {
+          displayNotifications([]);
+        }
+      } catch (error) {
+        console.error('Error loading notifications:', error);
+        displayNotifications([]);
+      }
+    }
+
+    function displayNotifications(notifications) {
+      if (notifications.length === 0) {
+        alert('No new notifications');
+        return;
+      }
+
+      let notificationText = 'Recent Notifications:\n\n';
+      notifications.forEach((notification, index) => {
+        notificationText += `${index + 1}. ${notification.message}\n`;
+        if (notification.timestamp) {
+          notificationText += `   ${new Date(notification.timestamp).toLocaleDateString()}\n`;
+        }
+        notificationText += '\n';
+      });
+
+      alert(notificationText);
+
+      // Hide notification badge after viewing
+      const badge = document.querySelector('.notification-badge');
+      if (badge) {
+        badge.style.display = 'none';
+      }
+    }
   </script>
 
 
