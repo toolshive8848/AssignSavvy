@@ -14,7 +14,7 @@ const fileProcessingService = new FileProcessingService();
 const llmService = new LLMService();
 ## Conclusion
 
-In conclusion, this analysis of "${title}" reveals significant insights that contribute to the broader understanding of the subject matter. The implications of these findings extend beyond the immediate scope of this assignment.
+In conclusion, this analysis of "${title}\" reveals significant insights that contribute to the broader understanding of the subject matter. The implications of these findings extend beyond the immediate scope of this assignment.
 
 ## References
 
@@ -100,7 +100,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
             
             // Handle assignment generation with premium features integration
             if (contentType === 'assignment') {
-                console.log(`Generating assignment: ${assignmentTitle} (Quality: ${qualityTier})`);
+                console.log(\`Generating assignment: ${assignmentTitle} (Quality: ${qualityTier})`);
                 
                 if (qualityTier === 'premium' && (useMultiPart || enableRefinement)) {
                     // Use multi-part generation with refinement for premium assignments
@@ -108,13 +108,13 @@ router.post('/generate', authenticateToken, async (req, res) => {
                     
                     result = await multiPartGenerator.generateMultiPartContent({
                         userId,
-                        prompt: `Assignment Title: ${assignmentTitle}\n\nInstructions: ${prompt}`,
+                        prompt: \`Assignment Title: ${assignmentTitle}\n\nInstructions: ${prompt}`,
                         requestedWordCount: wordCount,
                         userPlan: planValidation.userPlan.planType,
                         style,
                         tone,
                         subject: assignmentTitle,
-                        additionalInstructions: `Generate academic assignment with ${citationStyle} citations`,
+                        additionalInstructions: \`Generate academic assignment with ${citationStyle} citations`,
                         requiresCitations: true,
                         newBalance: creditResult.newBalance,
                         qualityTier: qualityTier,
@@ -125,7 +125,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
                     // Use multi-part generation for all assignments to ensure quality
                     
                     result = {
-                        content: `Assignment generation requires multi-part processing. Please use the multi-part generator.`,
+                        content: \`Assignment generation requires multi-part processing. Please use the multi-part generator.`,
                         wordCount: 0,
                         generationTime: 0,
                         source: 'error',
@@ -135,7 +135,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
                     contentSource = 'error';
                 }
             } else if (useMultiPart) {
-                console.log(`Using multi-part generation for ${wordCount} words`);
+                console.log(\`Using multi-part generation for ${wordCount} words`);
                 
                 // Use MultiPartGenerator for chunk-based generation with iterative detection
                 result = await multiPartGenerator.generateMultiPartContent({
@@ -304,7 +304,7 @@ router.post('/upload-and-generate', authenticateToken, upload.array('files', 5),
         if (!creditResult.success) {
             return res.status(400).json({
                 success: false,
-                error: `Insufficient credits. Need ${creditsNeeded}, available: ${creditResult.previousBalance || 0}`
+                error: \`Insufficient credits. Need ${creditsNeeded}, available: ${creditResult.previousBalance || 0}`
             });
         }
         
@@ -344,7 +344,7 @@ router.post('/upload-and-generate', authenticateToken, upload.array('files', 5),
             const enableRefinement = qualityTier === 'premium';
             
             if (useMultiPart) {
-                console.log(`Using multi-part generation for file-based content: ${wordCount} words`);
+                console.log(\`Using multi-part generation for file-based content: ${wordCount} words`);
                 
                 // Use MultiPartGenerator for chunk-based generation with iterative detection
                 llmResult = await multiPartGenerator.generateMultiPartContent({
@@ -542,7 +542,7 @@ router.post('/validate-files', upload.array('files', 5), (req, res) => {
                 name: file.originalname,
                 size: file.size,
                 type: path.extname(file.originalname).toLowerCase(),
-                sizeFormatted: `${(file.size / 1024 / 1024).toFixed(2)} MB`
+                sizeFormatted: \`${(file.size / 1024 / 1024).toFixed(2)} MB`
             }))
         });
         
